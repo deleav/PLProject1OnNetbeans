@@ -1,6 +1,7 @@
 # include <stdlib.h>
 # include <iostream>
 # include <string>
+# include <sstream>
 # include <vector>
 
 using namespace std;
@@ -48,9 +49,9 @@ private:
   } // GetTable1()
 
   vector<string> GetTable2() {
-    string strArray[] = { "+", "-", "*", "/", ";", "(", ")", ":=", "=", "<>", ">", "<", ">=", "<=", "//" };
+    string strArray[] = { "+", "-", "*", "/", ";", "(", ")", ":", ":=", "=", "<>", ">", "<", ">=", "<=", "//" };
     vector<string> table2;
-    for ( int i = 0 ; i < 15 ; i++ )
+    for ( int i = 0 ; i < 16 ; i++ )
       table2.push_back( strArray[i] );
     return table2;
   } // GetTable2()
@@ -166,8 +167,10 @@ void GetOneLineToken( OneLineToken &oneLineToken ) {
   PrintOneLineToken( oneLineToken );
 } // GetOneLineToken()
 
-bool NextLine( OneLineToken & oneLineToken ) {
+bool NextLine( OneLineToken &oneLineToken ) {
   PrintNowFunction( "NextLine" );
+  oneLineToken = OneLineToken();
+  // 因為&oneLineToken導致oneLineToken變成static，所以每次拿下一行之前要先清空
   GetOneLineToken( oneLineToken );
   if ( oneLineToken.size() > 0 )
     return true;
@@ -183,7 +186,15 @@ bool NextToken( Token &token ) {
   if ( nowColumnIndex < oneLineToken.size() ) {
     // PrintNowFunction( "nowColumnIndex < oneLineToken.size()" );
     token = oneLineToken[nowColumnIndex];
-    return true;
+    if ( token.mToken != "//" ){
+      // 如果不是註解的話
+      return true;
+    } // if
+    else {
+      // 如果是註解的話，就直接跳過這行剩下的token
+      nowColumnIndex = oneLineToken.size() - 1;
+      return NextToken( token );
+    } // else
   } // if
   else {
     if ( NextLine( oneLineToken ) ) {
@@ -207,8 +218,9 @@ void GetToken() {
 //                             FunctionReference                              //
 // /////////////////////////////////////////////////////////////////////////////
 
-bool ArithExp( Token &token );
-bool IDENT( Token &token );
+bool ArithExp( Token &token, int &num );
+bool IDENT( Token &token, int &num );
+bool Term( Token &token, int &num );
 
 // /////////////////////////////////////////////////////////////////////////////
 //                               Sub3Command                                  //
@@ -216,12 +228,19 @@ bool IDENT( Token &token );
 
 bool SIGN( Token &token ) {
   PrintNowFunction( "SIGN" );
+  if ( token.mToken == "+" || token.mToken == "-" )
+    return true;
 
   return false;
 } // SIGN()
 
-bool NUM( Token &token ) {
+bool NUM( Token &token, int &num ) {
   PrintNowFunction( "NUM" );
+  stringstream ss;
+  num = atoi( token.mToken.c_str() );
+  ss << num;
+  if ( ss.str() == token.mToken )
+    return true;
 
   return false;
 } // NUM()
@@ -230,72 +249,121 @@ bool NUM( Token &token ) {
 //                               Sub2Command                                  //
 // /////////////////////////////////////////////////////////////////////////////
 
-bool Factor( Token &token ) {
+
+// /////////////////////////////////////////////////
+//                    Factor start                //
+// /////////////////////////////////////////////////
+
+bool InOrOutAParenthesis( string in_or_out ) {
+  PrintNowFunction( "InOrOutAParenthesis" );
+  static vector<string> parenthesesStack;
+  if ( in_or_out == "in" ) {
+    parenthesesStack.push_back( "(" );
+    return true;
+  } // if
+  else if ( in_or_out == "out" ) {
+    if ( parenthesesStack.size() > 0 ) {
+      parenthesesStack.pop_back();
+      return true;
+    } // if
+  } // else if
+
+  return false;
+} // InOrOutAParenthesis()
+
+bool Factor( Token &token, int &num ) {
   PrintNowFunction( "Factor" );
   if ( SIGN( token ) ) {
     if ( NextToken( token ) ) {
-      if ( NUM( token ) ) {
+      if ( NUM( token, num ) ) {
         return true;
       } // if
     } // if
   } // if
-  else if ( NUM( token ) ) {
+  else if ( NUM( token, num ) ) {
     return true;
   } // else if
-  else if ( IDENT( token ) ) {
+  else if ( IDENT( token, num ) ) {
     return true;
   } // else if
   else if ( token.mToken == "(" ) {
+    InOrOutAParenthesis( "in" );
     if ( NextToken( token ) ) {
-      if ( ArithExp( token ) ) {
-        if ( NextToken( token ) ) {
-          if ( token.mToken == ")" ) {
-            return true;
-          } // if
-        } // if
-      } // if
+      return ArithExp( token, num );
     } // if
   } // else if
 
   return false;
 } // Factor()
 
+
+// /////////////////////////////////////////////////
+//                     Factor end                 //
+// /////////////////////////////////////////////////
+
 // /////////////////////////////////////////////////////////////////////////////
 //                                SubCommand                                  //
 // /////////////////////////////////////////////////////////////////////////////
 
-bool IDENT( Token &token ) {
+bool IDENT( Token &token, int &num ) {
   PrintNowFunction( "IDENT" );
+  if ( !NUM( token, num ) && !IsTable2( token.mToken ) ) {
+    return true;
+  } // if
 
   return false;
 } // IDENT()
 
-bool Term( Token &token ) {
-  PrintNowFunction( "Term" );
-  if ( Factor( token ) ) {
-    return true;
+// /////////////////////////////////////////////////
+//                     Term start                 //
+// /////////////////////////////////////////////////
+
+bool SubTerm( Token &token, int &num ) {
+  PrintNowFunction( "SubTerm" );
+  if ( token.mToken == ")" || token.mToken == ";" || token.mToken == "+" || token.mToken == "-" ) {
+    if ( token.mToken == ")" ) { // 如果是右括號，必須要成功pop掉一個左括號才能return true
+      if ( InOrOutAParenthesis( "out" ) )
+        return true;
+    } // if
+    else
+      return true;
   } // if
-  else if ( Term( token ) ) {
+  else if ( token.mToken == "*" ) {
     if ( NextToken( token ) ) {
-      if ( token.mToken == "*" ) {
-        if ( NextToken( token ) ) {
-          if ( Factor( token ) ) {
-            return true;
-          } // if
-        } // if
+      int num1 = num;
+      if ( Term( token, num ) ) {
+        num = num1 * num;
+        return true;
       } // if
-      else if ( token.mToken == "/" ) {
-        if ( NextToken( token ) ) {
-          if ( Factor( token ) ) {
-            return true;
-          } // if
-        } // if
-      } // else if
+    } // if
+  } // else if
+  else if ( token.mToken == "/" ) {
+    if ( NextToken( token ) ) {
+      int num1 = num;
+      if ( Term( token, num ) ) {
+        num = num1 / num;
+        return true;
+      } // if
     } // if
   } // else if
 
   return false;
+} // SubTerm()
+
+bool Term( Token &token, int &num ) {
+  PrintNowFunction( "Term" );
+  if ( Factor( token, num ) ) {
+    if ( NextToken( token ) ) {
+      return SubTerm( token, num );
+    } // if
+  } // if
+
+  return false;
 } // Term()
+
+// /////////////////////////////////////////////////
+//                     Term end                  //
+// /////////////////////////////////////////////////
 
 // /////////////////////////////////////////////////////////////////////////////
 //                                 Command                                    //
@@ -309,40 +377,56 @@ bool QUIT( Token &token ) {
   return false;
 } // QUIT()
 
-bool ArithExp( Token &token ) {
-  PrintNowFunction( "ArithExp" );
-  if ( Term( token ) ) {
+// /////////////////////////////////////////////////
+//                   ArithExp start               //
+// /////////////////////////////////////////////////
+
+bool SubArithExp( Token &token, int &num ) {
+  PrintNowFunction( "SubArithExp" );
+  if ( token.mToken == ";" || token.mToken == ")" )
     return true;
-  } // if
-  else if ( ArithExp( token ) ) {
+  else if ( token.mToken == "+" ) {
     if ( NextToken( token ) ) {
-      if ( token.mToken == "+" ) {
-        if ( NextToken( token ) ) {
-          if ( Term( token ) ) {
-            return true;
-          } // if
-        } // if
+      int num1 = num;
+      if ( ArithExp( token, num ) ) {
+        num = num1 + num;
+        return true;
       } // if
-      else if ( token.mToken == "-" ) {
-        if ( NextToken( token ) ) {
-          if ( Term( token ) ) {
-            return true;
-          } // if
-        } // if
-      } // else if
+    } // if
+  } // else if
+  else if ( token.mToken == "-" ) {
+    if ( NextToken( token ) ) {
+      int num1 = num;
+      if ( ArithExp( token, num ) ) {
+        num = num1 - num;
+        return true;
+      } // if
     } // if
   } // else if
 
   return false;
+} // SubArithExp()
+
+bool ArithExp( Token &token, int &num ) {
+  PrintNowFunction( "ArithExp" );
+  if ( Term( token, num ) ) {
+    return SubArithExp( token, num );
+  } // if
+
+  return false;
 } // ArithExp()
 
-bool BooleanExp( Token &token ) {
+// /////////////////////////////////////////////////
+//                    ArithExp end                //
+// /////////////////////////////////////////////////
+
+bool BooleanExp( Token &token, int &num ) {
   PrintNowFunction( "BooleanExp" );
-  if ( ArithExp( token ) ) {
+  if ( ArithExp( token, num ) ) {
     if ( NextToken( token ) ) {
       if ( IsBoolOperator( token ) ) {
         if ( NextToken( token ) ) {
-          if ( ArithExp( token ) ) {
+          if ( ArithExp( token, num ) ) {
             return true;
           } // if
         } // if
@@ -353,13 +437,13 @@ bool BooleanExp( Token &token ) {
   return false;
 } // BooleanExp()
 
-bool Statement( Token &token ) {
+bool Statement( Token &token, int &num ) {
   PrintNowFunction( "Statement" );
-  if ( IDENT( token ) ) {
+  if ( IDENT( token, num ) ) {
     if ( NextToken( token ) ) {
       if ( token.mToken == ":=" ) {
         if ( NextToken( token ) ) {
-          if ( ArithExp( token ) ) {
+          if ( ArithExp( token, num ) ) {
             return true;
           } // if
         } // if
@@ -373,44 +457,56 @@ bool Statement( Token &token ) {
 bool Command( string &e ) {
   PrintNowFunction( "Command" );
   Token token;
+  int num;
   while( NextToken( token ) ) {
     if ( QUIT( token ) ) {
+      cout << "Program exits..." << endl;
       return false;
     } // if
-    else if ( Statement( token ) ) {
-      if ( NextToken( token ) ) {
-        if ( token.mToken == ";" ) {
-          return true;
-        } // if
-      } // if
-    } // if
-    // else if ( BooleanExp( token ) ) {
+    // else if ( Statement( token ) ) {
+    //   if ( NextToken( token ) ) {
+    //     if ( token.mToken == ";" ) {
+    //       return true;
+    //     } // if
+    //   } // if
+    // } // if
+    // else if ( BooleanExp( token, num ) ) {
     //   if ( NextToken( token ) ) {
     //     if ( token.mToken == ";" ) {
     //       return true;
     //     } // if
     //   } // if
     // } // else if
-    // else if ( ArithExp( token ) ) {
-    //   if ( NextToken( token ) ) {
-    //     if ( token.mToken == ";" ) {
-    //       return true;
-    //     } // if
-    //   } // if
-    // } // else if
+    else if ( ArithExp( token, num ) ) {
+      cout << num << endl;
+      return true;
+    } // else if
   } // while
 
   e = "Something Error";
   return false;
 } // Command()
 
+void Test() {
+  string str = "(" ;
+  stringstream ss;
+  int a = atoi( str.c_str() );
+  ss << a;
+  str = ss.str();
+  cout << a;
+} // Test()
 
 int main() {
+  // GetToken();;
+  // Test();
+
+
   string e;
-  // GetToken();
-  while( Command( e ) );
-  if ( e.size() > 0 )
-    cout << e;
+  cout << "> " << endl;
+  while ( Command( e ) )
+    cout << "> " << e << endl;
+
+
 
   return 0;
 } // main()
