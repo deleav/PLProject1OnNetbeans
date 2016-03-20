@@ -186,7 +186,7 @@ bool NextToken( Token &token ) {
   if ( nowColumnIndex < oneLineToken.size() ) {
     // // PrintNowFunction( "nowColumnIndex < oneLineToken.size()" );
     token = oneLineToken[nowColumnIndex];
-    if ( token.mToken != "//" ){
+    if ( token.mToken != "//" ) {
       // 如果不是註解的話
       return true;
     } // if
@@ -210,7 +210,7 @@ void GetToken() {
   Token token;
   while ( NextToken( token ) && token.mToken != "quit" && token.mToken != "QUIT" ) {
     cout << token.mToken << endl;
-  }
+  } // while
 
 } // GetToken()
 
@@ -218,9 +218,9 @@ void GetToken() {
 //                             FunctionReference                              //
 // /////////////////////////////////////////////////////////////////////////////
 
-bool ArithExp( Token &token, int &num );
-bool IDENT( Token &token, int &num );
-bool Term( Token &token, int &num );
+bool ArithExp( Token &token, int &num ) ;
+bool IDENT( Token &token, int &num ) ;
+bool Term( Token &token, int &num ) ;
 
 // /////////////////////////////////////////////////////////////////////////////
 //                               Sub3Command                                  //
@@ -452,13 +452,13 @@ bool Statement( Token &token, int &num ) {
   } // if
 
   return false;
-} // statement()
+} // Statement()
 
 bool Command( string &e ) {
   // PrintNowFunction( "Command" );
   Token token;
   int num;
-  while( NextToken( token ) ) {
+  while ( NextToken( token ) ) {
     if ( QUIT( token ) ) {
       cout << "Program exits..." << endl;
       return false;
