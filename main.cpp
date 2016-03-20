@@ -184,7 +184,7 @@ bool NextToken( Token &token ) {
   static OneLineToken oneLineToken;
   nowColumnIndex++;
   if ( nowColumnIndex < oneLineToken.size() ) {
-    // PrintNowFunction( "nowColumnIndex < oneLineToken.size()" );
+    PrintNowFunction( "nowColumnIndex < oneLineToken.size()" );
     token = oneLineToken[nowColumnIndex];
     if ( token.mToken != "//" ){
       // 如果不是註解的話
