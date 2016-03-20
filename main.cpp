@@ -114,7 +114,7 @@ void PrintNowFunction( string str ) {
 // /////////////////////////////////////////////////////////////////////////////
 
 void GetOneLineString( string &oneLineString ) {
-  // PrintNowFunction( "GetOneLineString" );
+  PrintNowFunction( "GetOneLineString" );
   char *str1 = new char[ 100 ];
   cin.getline( str1, 100 );
   oneLineString = str1;
@@ -122,7 +122,7 @@ void GetOneLineString( string &oneLineString ) {
 } // GetOneLineString()
 
 void GetOneLineToken( OneLineToken &oneLineToken ) {
-  // PrintNowFunction( "GetOneLineToken" );
+  PrintNowFunction( "GetOneLineToken" );
   string oneLineString;
   GetOneLineString( oneLineString );
   cout << oneLineString;
@@ -168,7 +168,7 @@ void GetOneLineToken( OneLineToken &oneLineToken ) {
 } // GetOneLineToken()
 
 bool NextLine( OneLineToken &oneLineToken ) {
-  // PrintNowFunction( "NextLine" );
+  PrintNowFunction( "NextLine" );
   oneLineToken = OneLineToken();
   // 因為&oneLineToken導致oneLineToken變成static，所以每次拿下一行之前要先清空
   GetOneLineToken( oneLineToken );
@@ -179,7 +179,7 @@ bool NextLine( OneLineToken &oneLineToken ) {
 } // NextLine()
 
 bool NextToken( Token &token ) {
-  // PrintNowFunction( "NextToken" );
+  PrintNowFunction( "NextToken" );
   static int nowColumnIndex = -1;
   static OneLineToken oneLineToken;
   nowColumnIndex++;
@@ -227,7 +227,7 @@ bool Term( Token &token, int &num ) ;
 // /////////////////////////////////////////////////////////////////////////////
 
 bool SIGN( Token &token ) {
-  // PrintNowFunction( "SIGN" );
+  PrintNowFunction( "SIGN" );
   if ( token.mToken == "+" || token.mToken == "-" )
     return true;
 
@@ -235,7 +235,7 @@ bool SIGN( Token &token ) {
 } // SIGN()
 
 bool NUM( Token &token, int &num ) {
-  // PrintNowFunction( "NUM" );
+  PrintNowFunction( "NUM" );
   stringstream ss;
   num = atoi( token.mToken.c_str() );
   ss << num;
@@ -255,7 +255,7 @@ bool NUM( Token &token, int &num ) {
 // /////////////////////////////////////////////////
 
 bool InOrOutAParenthesis( string in_or_out ) {
-  // PrintNowFunction( "InOrOutAParenthesis" );
+  PrintNowFunction( "InOrOutAParenthesis" );
   static vector<string> parenthesesStack;
   if ( in_or_out == "in" ) {
     parenthesesStack.push_back( "(" );
@@ -272,7 +272,7 @@ bool InOrOutAParenthesis( string in_or_out ) {
 } // InOrOutAParenthesis()
 
 bool Factor( Token &token, int &num ) {
-  // PrintNowFunction( "Factor" );
+  PrintNowFunction( "Factor" );
   if ( SIGN( token ) ) {
     if ( NextToken( token ) ) {
       if ( NUM( token, num ) ) {
@@ -306,7 +306,7 @@ bool Factor( Token &token, int &num ) {
 // /////////////////////////////////////////////////////////////////////////////
 
 bool IDENT( Token &token, int &num ) {
-  // PrintNowFunction( "IDENT" );
+  PrintNowFunction( "IDENT" );
   if ( !NUM( token, num ) && !IsTable2( token.mToken ) ) {
     return true;
   } // if
@@ -319,7 +319,7 @@ bool IDENT( Token &token, int &num ) {
 // /////////////////////////////////////////////////
 
 bool SubTerm( Token &token, int &num ) {
-  // PrintNowFunction( "SubTerm" );
+  PrintNowFunction( "SubTerm" );
   if ( token.mToken == ")" || token.mToken == ";" || token.mToken == "+" || token.mToken == "-" ) {
     if ( token.mToken == ")" ) { // 如果是右括號，必須要成功pop掉一個左括號才能return true
       if ( InOrOutAParenthesis( "out" ) )
@@ -351,7 +351,7 @@ bool SubTerm( Token &token, int &num ) {
 } // SubTerm()
 
 bool Term( Token &token, int &num ) {
-  // PrintNowFunction( "Term" );
+  PrintNowFunction( "Term" );
   if ( Factor( token, num ) ) {
     if ( NextToken( token ) ) {
       return SubTerm( token, num );
@@ -370,7 +370,7 @@ bool Term( Token &token, int &num ) {
 // /////////////////////////////////////////////////////////////////////////////
 
 bool QUIT( Token &token ) {
-  // PrintNowFunction( "QUIT" );
+  PrintNowFunction( "QUIT" );
   if ( token.mToken == "quit" || token.mToken == "QUIT" )
     return true;
 
@@ -382,7 +382,7 @@ bool QUIT( Token &token ) {
 // /////////////////////////////////////////////////
 
 bool SubArithExp( Token &token, int &num ) {
-  // PrintNowFunction( "SubArithExp" );
+  PrintNowFunction( "SubArithExp" );
   if ( token.mToken == ";" || token.mToken == ")" )
     return true;
   else if ( token.mToken == "+" ) {
@@ -408,7 +408,7 @@ bool SubArithExp( Token &token, int &num ) {
 } // SubArithExp()
 
 bool ArithExp( Token &token, int &num ) {
-  // PrintNowFunction( "ArithExp" );
+  PrintNowFunction( "ArithExp" );
   if ( Term( token, num ) ) {
     return SubArithExp( token, num );
   } // if
@@ -421,7 +421,7 @@ bool ArithExp( Token &token, int &num ) {
 // /////////////////////////////////////////////////
 
 bool BooleanExp( Token &token, int &num ) {
-  // PrintNowFunction( "BooleanExp" );
+  PrintNowFunction( "BooleanExp" );
   if ( ArithExp( token, num ) ) {
     if ( NextToken( token ) ) {
       if ( IsBoolOperator( token ) ) {
@@ -438,7 +438,7 @@ bool BooleanExp( Token &token, int &num ) {
 } // BooleanExp()
 
 bool Statement( Token &token, int &num ) {
-  // PrintNowFunction( "Statement" );
+  PrintNowFunction( "Statement" );
   if ( IDENT( token, num ) ) {
     if ( NextToken( token ) ) {
       if ( token.mToken == ":=" ) {
@@ -455,7 +455,7 @@ bool Statement( Token &token, int &num ) {
 } // Statement()
 
 bool Command( string &e ) {
-  // PrintNowFunction( "Command" );
+  PrintNowFunction( "Command" );
   Token token;
   int num;
   while ( NextToken( token ) ) {
