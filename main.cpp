@@ -6,6 +6,8 @@
 
 using namespace std;
 
+static int uTestNum = -1;
+
 // /////////////////////////////////////////////////////////////////////////////
 //                               class & struct                               //
 // /////////////////////////////////////////////////////////////////////////////
@@ -49,7 +51,8 @@ private:
   } // GetTable1()
 
   vector<string> GetTable2() {
-    string strArray[] = { "+", "-", "*", "/", ";", "(", ")", ":", ":=", "=", "<>", ">", "<", ">=", "<=", "//" };
+    string strArray[] = { "+", "-", "*", "/", ";", "(", ")", ":", 
+                          ":=", "=", "<>", ">", "<", ">=", "<=", "//" };
     vector<string> table2;
     for ( int i = 0 ; i < 16 ; i++ )
       table2.push_back( strArray[i] );
@@ -95,7 +98,7 @@ bool IsBoolOperator( Token &token ) {
        token.mToken == "<" || token.mToken == ">=" || token.mToken == "<=" )
     return true;
   return false;
-} // IsOperator()
+} // IsBoolOperator()
 
 // /////////////////////////////////////////////////////////////////////////////
 //                                 Print                                      //
@@ -108,7 +111,8 @@ void PrintOneLineToken( vector<Token> oneLineToken ) {
 
 void PrintNowFunction( string str ) {
   cout << "now in " << str << endl;
-} // PrintNowFunction
+} // PrintNowFunction()
+
 // /////////////////////////////////////////////////////////////////////////////
 //                                GetToken                                    //
 // /////////////////////////////////////////////////////////////////////////////
@@ -125,7 +129,7 @@ void GetOneLineToken( OneLineToken &oneLineToken ) {
   // PrintNowFunction( "GetOneLineToken" );
   string oneLineString;
   GetOneLineString( oneLineString );
-  cout << oneLineString;
+  // cout << oneLineString;
 
   string oneTokenString;
   for ( int i = 0 ; i < oneLineString.size() ; i++ ) { // 找到一整行的token
@@ -164,7 +168,7 @@ void GetOneLineToken( OneLineToken &oneLineToken ) {
   } // for
 
   gAllLineToken.push_back( oneLineToken );
-  PrintOneLineToken( oneLineToken );
+  // PrintOneLineToken( oneLineToken );
 } // GetOneLineToken()
 
 bool NextLine( OneLineToken &oneLineToken ) {
@@ -499,12 +503,13 @@ void Test() {
 int main() {
   // GetToken();;
   // Test();
-
-
-  string e;
-  cout << "> " << endl;
+  string e, testNum;
+  cout << "Program starts..." << endl;
+  GetOneLineString( testNum );
+  uTestNum  = atoi( testNum.c_str() );
+  cout << "> ";
   while ( Command( e ) )
-    cout << "> " << e << endl;
+    cout << "> " << e;
 
 
 
