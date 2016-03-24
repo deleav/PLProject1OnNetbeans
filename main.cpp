@@ -289,8 +289,11 @@ bool InOrOutAParenthesis( string in_or_out ) {
 bool Factor( Token &token, int &num ) {
   // PrintNowFunction( "Factor" );
   if ( SIGN( token ) ) {
+    Token sign = token;
     if ( NextToken( token ) ) {
       if ( NUM( token, num ) ) {
+        if ( sign.mToken == "-" )
+          num = 0 - num;
         return true;
       } // if
     } // if
