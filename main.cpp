@@ -6,6 +6,8 @@
 
 using namespace std;
 
+static int uTestNum = -1;
+
 // /////////////////////////////////////////////////////////////////////////////
 //                               class & struct                               //
 // /////////////////////////////////////////////////////////////////////////////
@@ -49,7 +51,8 @@ private:
   } // GetTable1()
 
   vector<string> GetTable2() {
-    string strArray[] = { "+", "-", "*", "/", ";", "(", ")", ":", ":=", "=", "<>", ">", "<", ">=", "<=", "//" };
+    string strArray[] = { "+", "-", "*", "/", ";", "(", ")", ":",
+                          ":=", "=", "<>", ">", "<", ">=", "<=", "//" };
     vector<string> table2;
     for ( int i = 0 ; i < 16 ; i++ )
       table2.push_back( strArray[i] );
@@ -66,6 +69,7 @@ typedef vector<OneLineToken> AllLineToken;
 
 AllLineToken gAllLineToken;
 Table gTable;
+bool gError = false;
 
 // /////////////////////////////////////////////////////////////////////////////
 //                                   IsOO                                     //
@@ -95,7 +99,7 @@ bool IsBoolOperator( Token &token ) {
        token.mToken == "<" || token.mToken == ">=" || token.mToken == "<=" )
     return true;
   return false;
-} // IsOperator()
+} // IsBoolOperator()
 
 // /////////////////////////////////////////////////////////////////////////////
 //                                 Print                                      //
@@ -108,7 +112,8 @@ void PrintOneLineToken( vector<Token> oneLineToken ) {
 
 void PrintNowFunction( string str ) {
   cout << "now in " << str << endl;
-} // PrintNowFunction
+} // PrintNowFunction()
+
 // /////////////////////////////////////////////////////////////////////////////
 //                                GetToken                                    //
 // /////////////////////////////////////////////////////////////////////////////
@@ -121,11 +126,12 @@ void GetOneLineString( string &oneLineString ) {
   oneLineString += "\n";
 } // GetOneLineString()
 
-void GetOneLineToken( OneLineToken &oneLineToken ) {
+void GetOneLineToken() {
   PrintNowFunction( "GetOneLineToken" );
   string oneLineString;
+  OneLineToken oneLineToken;
   GetOneLineString( oneLineString );
-  cout << oneLineString;
+  // cout << oneLineString;
 
   string oneTokenString;
   for ( int i = 0 ; i < oneLineString.size() ; i++ ) { // 找到一整行的token
@@ -164,18 +170,22 @@ void GetOneLineToken( OneLineToken &oneLineToken ) {
   } // for
 
   gAllLineToken.push_back( oneLineToken );
-  PrintOneLineToken( oneLineToken );
+  // PrintOneLineToken( oneLineToken );
 } // GetOneLineToken()
 
 bool NextLine( OneLineToken &oneLineToken ) {
   PrintNowFunction( "NextLine" );
-  oneLineToken = OneLineToken();
+  static int nowLineIndex = -1;
   // 因為&oneLineToken導致oneLineToken變成static，所以每次拿下一行之前要先清空
-  GetOneLineToken( oneLineToken );
-  if ( oneLineToken.size() > 0 )
-    return true;
+  GetOneLineToken();
+  nowLineIndex++;
+  if ( nowLineIndex < gAllLineToken.size() ) {
+    oneLineToken = gAllLineToken[nowLineIndex];
+    if ( oneLineToken.size() > 0 )
+      return true;
+  } // if
 
-  return false;
+  return NextLine( oneLineToken );
 } // NextLine()
 
 bool NextToken( Token &token ) {
@@ -183,10 +193,15 @@ bool NextToken( Token &token ) {
   static int nowColumnIndex = -1;
   static OneLineToken oneLineToken;
   nowColumnIndex++;
+  if ( gError ) {
+    nowColumnIndex = oneLineToken.size();
+    gError = false;
+  } // if
+
   if ( nowColumnIndex < oneLineToken.size() ) {
     PrintNowFunction( "nowColumnIndex < oneLineToken.size()" );
     token = oneLineToken[nowColumnIndex];
-    if ( token.mToken != "//" ){
+    if ( token.mToken != "//" ) {
       // 如果不是註解的話
       return true;
     } // if
@@ -210,7 +225,7 @@ void GetToken() {
   Token token;
   while ( NextToken( token ) && token.mToken != "quit" && token.mToken != "QUIT" ) {
     cout << token.mToken << endl;
-  }
+  } // while
 
 } // GetToken()
 
@@ -218,9 +233,9 @@ void GetToken() {
 //                             FunctionReference                              //
 // /////////////////////////////////////////////////////////////////////////////
 
-bool ArithExp( Token &token, int &num );
-bool IDENT( Token &token, int &num );
-bool Term( Token &token, int &num );
+bool ArithExp( Token &token, int &num ) ;
+bool IDENT( Token &token, int &num ) ;
+bool Term( Token &token, int &num ) ;
 
 // /////////////////////////////////////////////////////////////////////////////
 //                               Sub3Command                                  //
@@ -320,7 +335,8 @@ bool IDENT( Token &token, int &num ) {
 
 bool SubTerm( Token &token, int &num ) {
   PrintNowFunction( "SubTerm" );
-  if ( token.mToken == ")" || token.mToken == ";" || token.mToken == "+" || token.mToken == "-" ) {
+  if ( token.mToken == ")" || token.mToken == ";" || token.mToken == "+" || token.mToken == "-" ||
+       IsBoolOperator( token ) ) {
     if ( token.mToken == ")" ) { // 如果是右括號，必須要成功pop掉一個左括號才能return true
       if ( InOrOutAParenthesis( "out" ) )
         return true;
@@ -383,7 +399,7 @@ bool QUIT( Token &token ) {
 
 bool SubArithExp( Token &token, int &num ) {
   PrintNowFunction( "SubArithExp" );
-  if ( token.mToken == ";" || token.mToken == ")" )
+  if ( token.mToken == ";" || token.mToken == ")" || IsBoolOperator( token ) )
     return true;
   else if ( token.mToken == "+" ) {
     if ( NextToken( token ) ) {
@@ -420,22 +436,58 @@ bool ArithExp( Token &token, int &num ) {
 //                    ArithExp end                //
 // /////////////////////////////////////////////////
 
+// /////////////////////////////////////////////////
+//                  BooleanExp start              //
+// /////////////////////////////////////////////////
+
+bool CompareBool( int num1, Token op, int num2 ) {
+  PrintNowFunction( "CompareBool" );
+  if ( op.mToken == "=" )
+    return num1 == num2;
+  else if ( op.mToken == "<>" )
+    return num1 != num2;
+  else if ( op.mToken == ">" )
+    return num1 > num2;
+  else if ( op.mToken == "<" )
+    return num1 < num2;
+  else if ( op.mToken == ">=" )
+    return num1 >= num2;
+  else if ( op.mToken == "<=" )
+    return num1 <= num2;
+
+  return false;
+} // CompareBool()
+
 bool BooleanExp( Token &token, int &num ) {
   PrintNowFunction( "BooleanExp" );
   if ( ArithExp( token, num ) ) {
-    if ( NextToken( token ) ) {
-      if ( IsBoolOperator( token ) ) {
-        if ( NextToken( token ) ) {
-          if ( ArithExp( token, num ) ) {
+    if ( token.mToken == ";" ) {
+      cout << num << endl;
+      return true;
+    } // if
+    else if ( IsBoolOperator( token ) ) {
+      Token op = token;
+      int num1 = num;
+      if ( NextToken( token ) ) {
+        if ( ArithExp( token, num ) ) {
+          if ( token.mToken == ";" ) {
+            if ( CompareBool( num1, op, num ) )
+              cout << "true" << endl;
+            else
+              cout << "false" << endl;
             return true;
           } // if
         } // if
       } // if
-    } // if
+    } // else if
   } // if
 
   return false;
 } // BooleanExp()
+
+// /////////////////////////////////////////////////
+//                   BooleanExp end               //
+// /////////////////////////////////////////////////
 
 bool Statement( Token &token, int &num ) {
   PrintNowFunction( "Statement" );
@@ -452,13 +504,14 @@ bool Statement( Token &token, int &num ) {
   } // if
 
   return false;
-} // statement()
+} // Statement()
 
 bool Command( string &e ) {
   PrintNowFunction( "Command" );
   Token token;
   int num;
-  while( NextToken( token ) ) {
+  cout << "> ";
+  while ( NextToken( token ) ) {
     if ( QUIT( token ) ) {
       cout << "Program exits..." << endl;
       return false;
@@ -470,21 +523,16 @@ bool Command( string &e ) {
     //     } // if
     //   } // if
     // } // if
-    // else if ( BooleanExp( token, num ) ) {
-    //   if ( NextToken( token ) ) {
-    //     if ( token.mToken == ";" ) {
-    //       return true;
-    //     } // if
-    //   } // if
-    // } // else if
-    else if ( ArithExp( token, num ) ) {
-      cout << num << endl;
-      return true;
+    else if ( BooleanExp( token, num ) ) {
+      // do nothing
     } // else if
-  } // while
+    else {
+      cout << "Something Error\n";
+      gError = true;
+    } // else
 
-  e = "Something Error";
-  return false;
+    cout << "> ";
+  } // while
 } // Command()
 
 void Test() {
@@ -499,13 +547,13 @@ void Test() {
 int main() {
   // GetToken();;
   // Test();
+  string e, testNum;
+  cout << "Program starts..." << endl;
+  GetOneLineString( testNum );
+  uTestNum  = atoi( testNum.c_str() );
 
-
-  string e;
-  cout << "> " << endl;
-  while ( Command( e ) )
-    cout << "> " << e << endl;
-
+  Command( e );
+  cout << e;
 
 
   return 0;
