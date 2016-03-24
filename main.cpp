@@ -289,8 +289,11 @@ bool InOrOutAParenthesis( string in_or_out ) {
 bool Factor( Token &token, int &num ) {
   PrintNowFunction( "Factor" );
   if ( SIGN( token ) ) {
+    Token sign = token;
     if ( NextToken( token ) ) {
       if ( NUM( token, num ) ) {
+        if ( sign.mToken == "-" )
+          num = 0 - num;
         return true;
       } // if
     } // if
@@ -506,7 +509,7 @@ bool Statement( Token &token, int &num ) {
   return false;
 } // Statement()
 
-bool Command( string &e ) {
+void Command( string &e ) {
   PrintNowFunction( "Command" );
   Token token;
   int num;
@@ -514,7 +517,7 @@ bool Command( string &e ) {
   while ( NextToken( token ) ) {
     if ( QUIT( token ) ) {
       cout << "Program exits..." << endl;
-      return false;
+      return ;
     } // if
     // else if ( Statement( token ) ) {
     //   if ( NextToken( token ) ) {
