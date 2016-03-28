@@ -40,6 +40,20 @@ public:
   } // Token()
 }; // class Token
 
+class Identifier {
+public:
+  string mToken;
+  float mValue;
+
+  Identifier() {
+    mValue = 0;
+  } // Identifier()
+  Identifier( string token, float value ) {
+    mToken = token;
+    mValue = value;
+  } // Identifier()
+}; // class Identifier
+
 class Table {
 public:
   vector<string> mTable1; // instruction
@@ -77,8 +91,8 @@ typedef vector<Token> OneLineToken;
 typedef vector<OneLineToken> AllLineToken;
 
 OneLineToken gHeadOfStatement;
-OneLineToken gIdentifier;
 AllLineToken gAllLineToken;
+vector<Identifier> gIdentifier;
 Table gTable;
 bool gError = false;
 bool gJump = false;
@@ -125,10 +139,13 @@ bool IsBoolOperator( Token &token ) {
   return false;
 } // IsBoolOperator()
 
-bool IsDefine( Token token ) {
+bool IsIDENTDefined( Token token ) {
+  for ( int i = 0 ; i < gIdentifier.size() ; i++ )
+    if ( gIdentifier[i].mToken == token.mToken )
+      return true;
 
   return false;
-} // IsDefine()
+} // IsIDENTDefined()
 
 // /////////////////////////////////////////////////////////////////////////////
 //                                 Print                                      //
@@ -252,6 +269,7 @@ bool NextToken( Token &token ) {
     token = oneLineToken[nowColumnIndex];
     if ( token.mToken != "//" ) {
       // 如果不是註解的話
+      cout << token.mToken << endl;
       return true;
     } // if
     else {
@@ -433,8 +451,11 @@ bool Factor( Token &token, float &num ) {
   } // else if
   else if ( IDENT( token, num ) ) {
     // 如果他是一個 IDENT，就檢查他是否有宣告過
-    if ( IsDefine( token ) )
+    if ( IsIDENTDefined( token ) )
       return true;
+    else {
+      cout << "Undefined identifier : '" + token.mToken + "'" << endl;
+    }
   } // else if
   else if ( token.mToken == "(" ) {
     InOrOutAParenthesis( "in" );
@@ -458,6 +479,7 @@ bool Factor( Token &token, float &num ) {
 bool IDENT( Token &token, float &num ) {
   PrintNowFunction( "IDENT" );
   if ( !NUM( token, num ) && !IsTable2( token.mToken ) ) {
+    // 不是數字也不是符號
     return true;
   } // if
 
@@ -639,11 +661,15 @@ bool BooleanExp( Token &token, float &num ) {
 bool Statement( Token &token, float &num ) {
   PrintNowFunction( "Statement" );
   if ( IDENT( token, num ) ) {
+    Token token1 = token;
+    float num1 = num;
     if ( NextToken( token ) ) {
       if ( token.mToken == ":=" ) {
         if ( NextToken( token ) ) {
           if ( ArithExp( token, num ) ) {
             if ( token.mToken == ";" ) {
+              Identifier ident( token1.mToken, num1 );
+              gIdentifier.push_back( ident );
               return true;
             } // if
           } // if
@@ -652,6 +678,7 @@ bool Statement( Token &token, float &num ) {
 
       // 發現不是宣告的時候就強制跳到這個 Statement 的第一個 token
       gJump = true;
+      NextToken( token );
     } // if
   } // if
 
@@ -663,8 +690,10 @@ void Command( string &e ) {
   Token token;
   float num;
   while ( NextToken( token ) ) {
-    if ( token.mIsRecord )
+    if ( !token.mIsRecord ) {
       gHeadOfStatement.push_back( token );
+      token.mIsRecord = true;
+    } // if
     if ( QUIT( token ) ) {
       cout << "Program exits..." << endl;
       return ;
