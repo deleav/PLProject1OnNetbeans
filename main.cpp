@@ -216,6 +216,8 @@ bool GetOneLineToken() {
 
         Token token( op, gAllLineToken.size(), oneLineToken.size() );
         oneLineToken.push_back( token );
+        if ( op == "//" )
+          i = oneLineString.size() - 1;
         // 將一個 operator token塞進oneLineToken裡面
       } // if
     } // else
@@ -233,6 +235,10 @@ bool NextLine( OneLineToken &oneLineToken, int &nowLineIndex ) {
     oneLineToken = gAllLineToken[nowLineIndex];
     if ( oneLineToken.size() > 0 )
       return true;
+    else {
+      GetOneLineToken();
+      return NextLine( oneLineToken, nowLineIndex );
+    } // else
   } // if
 
   GetOneLineToken();
@@ -267,7 +273,7 @@ bool NextToken( Token &token ) {
     token = oneLineToken[nowColumnIndex];
     if ( token.mToken != "//" ) {
       // 如果不是註解的話
-      cout << token.mToken << endl;
+      // cout << token.mToken << endl;
       return true;
     } // if
     else {
