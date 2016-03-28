@@ -17,26 +17,26 @@ public:
   string mToken;
   int mX;
   int mY;
-  bool isRecord;
+  bool mIsRecord;
 
   Token() {
     mX = -1;
     mY = -1;
-    isRecord = false;
+    mIsRecord = false;
   } // Token()
 
   Token( string str ) {
     mToken = str;
     mX = -1;
     mY = -1;
-    isRecord = false;
+    mIsRecord = false;
   } // Token()
 
   Token( string str, int x, int y ) {
     mToken = str;
     mX = x;
     mY = y;
-    isRecord = false;
+    mIsRecord = false;
   } // Token()
 }; // class Token
 
@@ -107,14 +107,13 @@ bool IsTable2( string str ) {
   return false;
 } // IsTable2()
 
-bool AcceptToken( Token token ) {
+bool AcceptToken( string str ) {
   float num;
-  if ( ( token.mToken[0] >= 65 && token.mToken[0] <= 90 ) ||
-       ( token.mToken[0] >= 97 && token.mToken[0] <= 122 ) || NUM( token, num ) )
+  Token token( str );
+  if ( ( str[0] >= 65 && str[0] <= 90 ) ||
+       ( str[0] >= 97 && str[0] <= 122 ) || NUM( token, num ) )
     return true;
 
-  string str;
-  str += token.mToken[0];
   cout << "Unrecognized token with first char : '" + str + "'" << endl;
   return false;
 } // AcceptToken()
@@ -192,7 +191,7 @@ bool GetOneLineToken() {
             op = oneChar;
             i++;
           } // if
-          else if ( op == ":" ){
+          else if ( op == ":" ) {
             // op = :, 又不是:=
             return AcceptToken( oneChar );
           } // else if
@@ -312,7 +311,7 @@ bool NUM( Token &token, float &num ) {
       } // if
       else { // 不是dot也不是數字
         return false;
-      }
+      } // else
     } // if
   } // for
 
@@ -505,8 +504,8 @@ bool SubTerm( Token &token, float &num ) {
           } // if
           else {
             cout << "Error" << endl;
-          }
-        }
+          } // else
+        } // else
       } // if
     } // if
   } // else if
@@ -664,7 +663,7 @@ void Command( string &e ) {
   Token token;
   float num;
   while ( NextToken( token ) ) {
-    if ( token.isRecord )
+    if ( token.mIsRecord )
       gHeadOfStatement.push_back( token );
     if ( QUIT( token ) ) {
       cout << "Program exits..." << endl;
