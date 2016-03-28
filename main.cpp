@@ -150,8 +150,8 @@ void PrintNowFunction( string str ) {
 
 void GetOneLineString( string &oneLineString ) {
   PrintNowFunction( "GetOneLineString" );
-  cout << "> ";
   char *str1 = new char[ 100 ];
+  cout << "> ";
   cin.getline( str1, 100 );
   oneLineString = str1;
   oneLineString += "\n";
