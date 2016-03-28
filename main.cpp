@@ -234,10 +234,8 @@ bool NextLine( OneLineToken &oneLineToken, int &nowLineIndex ) {
     if ( oneLineToken.size() > 0 )
       return true;
   } // if
-  else {
-    GetOneLineToken();
-  } // else
 
+  GetOneLineToken();
   // 如果拿下一行遇到 Unrecognized token with first char 就把 ++ 減回來
   nowLineIndex--;
   return NextLine( oneLineToken, nowLineIndex );
