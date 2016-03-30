@@ -13,6 +13,22 @@ static int uTestNum = -1;
 //                               class & struct                               //
 // /////////////////////////////////////////////////////////////////////////////
 
+class Value {
+public:
+  string type;
+  int mInt;
+  float mFloat;
+
+  void CleanOtherType() {
+    if ( type == "int" ) {
+      mFloat = 0;
+    } // if
+    else if ( type == "float" ) {
+      mInt = 0;
+    } // else if
+  } // CleanOtherType()
+}; // class Value
+
 class Token {
 public:
   string mToken;
@@ -44,13 +60,9 @@ public:
 class Identifier {
 public:
   string mToken;
-  float mValue;
+  Value mValue;
 
-  Identifier() {
-    mValue = 0;
-  } // Identifier()
-
-  Identifier( string token, float value ) {
+  Identifier( string token, Value value ) {
     mToken = token;
     mValue = value;
   } // Identifier()
@@ -204,7 +216,9 @@ void GetOneLineString( string &oneLineString ) {
 bool GetNumToken( string oneLineString, OneLineToken &oneLineToken, int &index ) {
   // PrintNowFunction( "GetNumToken" );
   string aCharToString, aTokenString;
-  int dotNum = 1;
+  int dotNum = 0;
+  if ( aCharToString != "." )
+    dotNum = 1;
   for ( ; index < oneLineString.size() ; index++ ) {
     aCharToString = string();
     aCharToString += oneLineString[index];
@@ -293,7 +307,7 @@ bool GetOneLineToken() {
   for ( int i = 0 ; i < oneLineString.size() ; i++ ) {
     aCharToString = string();
     aCharToString += oneLineString[i];
-    if ( IsANumChar( aCharToString ) ) {
+    if ( IsANumChar( aCharToString ) || aCharToString == "." ) {
       GetNumToken( oneLineString, oneLineToken, i );
     } // if
     else if ( RecognizedIDTokenHead( aCharToString ) ) {
@@ -386,10 +400,6 @@ void GetToken() {
 //                             FunctionReference                              //
 // /////////////////////////////////////////////////////////////////////////////
 
-bool ArithExp( Token &token, float &num ) ;
-bool IDENT( Token &token, float &num ) ;
-bool Term( Token &token, float &num ) ;
-
 // /////////////////////////////////////////////////////////////////////////////
 //                               Sub3Command                                  //
 // /////////////////////////////////////////////////////////////////////////////
@@ -402,7 +412,7 @@ bool SIGN( Token &token ) {
   return false;
 } // SIGN()
 
-bool NUM( Token &token, float &num ) {
+bool NUM( Token &token, Value &value ) {
   // PrintNowFunction( "NUM" );
   int dot = 1;
   for ( int i = 0 ; i < token.mToken.size() ; i++ ) {
@@ -425,7 +435,8 @@ bool NUM( Token &token, float &num ) {
     // 第一個不能是點
   } // if
 
-  num = atof( token.mToken.c_str() );
+  value.type = "float";
+  value.mFloat = atof( token.mToken.c_str() );
   // 暫時先轉成integer
   return true;
 } // NUM()
@@ -499,153 +510,20 @@ bool CaculateEveryThing( Token num1Token, Token op, Token num2Token, Token &sumT
 //                    Caculate end                //
 // /////////////////////////////////////////////////
 
-// /////////////////////////////////////////////////
-//                    Factor start                //
-// /////////////////////////////////////////////////
-
-vector<string> gParenthesesStack;
-
-bool InOrOutAParenthesis( string in_or_out ) {
-  // // PrintNowFunction( "InOrOutAParenthesis" );
-  if ( in_or_out == "in" ) {
-    gParenthesesStack.push_back( "(" );
-    return true;
-  } // if
-  else if ( in_or_out == "out" ) {
-    if ( gParenthesesStack.size() > 0 ) {
-      gParenthesesStack.pop_back();
-      return true;
-    } // if
-  } // else if
-
-  return false;
-} // InOrOutAParenthesis()
-
-bool Factor( Token &token, float &num ) {
-  // PrintNowFunction( "Factor" );
-  if ( SIGN( token ) ) {
-    Token sign = token;
-    if ( NextToken( token ) ) {
-      if ( NUM( token, num ) ) {
-        if ( sign.mToken == "-" )
-          num = 0 - num;
-        return true;
-      } // if
-    } // if
-  } // if
-  else if ( NUM( token, num ) ) {
-    return true;
-  } // else if
-  else if ( IDENT( token, num ) ) {
-    // 如果他是一個 IDENT，就檢查他是否有宣告過
-    int identIndex;
-    if ( IsIDENTDefined( token, identIndex ) ) {
-      num = gIdentifier[identIndex].mValue;
-      return true;
-    } // if
-    else {
-      gErrorMessage = "Undefined";
-    } // else
-  } // else if
-  else if ( token.mToken == "(" ) {
-    InOrOutAParenthesis( "in" );
-    if ( NextToken( token ) ) {
-      return ArithExp( token, num );
-    } // if
-  } // else if
-
-  return false;
-} // Factor()
-
-
-// /////////////////////////////////////////////////
-//                     Factor end                 //
-// /////////////////////////////////////////////////
-
 // /////////////////////////////////////////////////////////////////////////////
-//                                SubCommand                                  //
+//                                 Command                                    //
 // /////////////////////////////////////////////////////////////////////////////
 
-bool IDENT( Token &token, float &num ) {
+bool IDENT( Token &token ) {
   // PrintNowFunction( "IDENT" );
-  if ( !NUM( token, num ) && !IsTable2( token.mToken ) ) {
+  Value value;
+  if ( !NUM( token, value ) && !IsTable2( token.mToken ) ) {
     // 不是數字也不是符號
     return true;
   } // if
 
   return false;
 } // IDENT()
-
-// /////////////////////////////////////////////////
-//                     Term start                 //
-// /////////////////////////////////////////////////
-
-bool SubTerm( Token &token, float &num ) {
-  // PrintNowFunction( "SubTerm" );
-  if ( token.mToken == ")" || token.mToken == ";" || token.mToken == "+" || token.mToken == "-" ||
-       IsBoolOperator( token ) ) {
-    if ( token.mToken == ")" ) { // 如果是右括號，必須要成功pop掉一個左括號才能return true
-      if ( InOrOutAParenthesis( "out" ) )
-        return true;
-    } // if
-    else {
-      if ( token.mToken == ";" && gParenthesesStack.size() > 0 )
-        return false;
-      return true;
-    } // else
-  } // if
-  else if ( token.mToken == "*" ) {
-    if ( NextToken( token ) ) {
-      float num1 = num;
-      if ( Term( token, num ) ) {
-        num = num1 * num;
-        return true;
-      } // if
-    } // if
-  } // else if
-  else if ( token.mToken == "/" ) {
-    if ( NextToken( token ) ) {
-      float num1 = num;
-      if ( Term( token, num ) ) {
-        if ( num != 0 ) {
-          num = num1 / num;
-          return true;
-        } // if
-        else {
-          // num == 0
-          if ( num1 == 0 ) {
-            num = 0;
-            return true;
-          } // if
-          else {
-            cout << "Error" << endl;
-          } // else
-        } // else
-      } // if
-    } // if
-  } // else if
-
-  return false;
-} // SubTerm()
-
-bool Term( Token &token, float &num ) {
-  // PrintNowFunction( "Term" );
-  if ( Factor( token, num ) ) {
-    if ( NextToken( token ) ) {
-      return SubTerm( token, num );
-    } // if
-  } // if
-
-  return false;
-} // Term()
-
-// /////////////////////////////////////////////////
-//                     Term end                  //
-// /////////////////////////////////////////////////
-
-// /////////////////////////////////////////////////////////////////////////////
-//                                 Command                                    //
-// /////////////////////////////////////////////////////////////////////////////
 
 bool QUIT( Token &token ) {
   // // PrintNowFunction( "QUIT" );
@@ -656,56 +534,10 @@ bool QUIT( Token &token ) {
 } // QUIT()
 
 // /////////////////////////////////////////////////
-//                   ArithExp start               //
-// /////////////////////////////////////////////////
-
-
-bool SubArithExp( Token &token, float &num ) {
-  // PrintNowFunction( "SubArithExp" );
-  if ( token.mToken == ";" || token.mToken == ")" || IsBoolOperator( token ) ) {
-    if ( gErrorMessage.size() == 0 )
-      return true;
-  } // if
-  else if ( token.mToken == "+" ) {
-    if ( NextToken( token ) ) {
-      float num1 = num;
-      if ( Term( token, num ) ) {
-        num = num1 + num;
-        return true;
-      } // if
-    } // if
-  } // else if
-  else if ( token.mToken == "-" ) {
-    if ( NextToken( token ) ) {
-      float num1 = num;
-      if ( Term( token, num ) ) {
-        num = num1 - num;
-        return true;
-      } // if
-    } // if
-  } // else if
-
-  return false;
-} // SubArithExp()
-
-bool ArithExp( Token &token, float &num ) {
-  // PrintNowFunction( "ArithExp" );
-  if ( Term( token, num ) ) {
-    return SubArithExp( token, num );
-  } // if
-
-  return false;
-} // ArithExp()
-
-// /////////////////////////////////////////////////
-//                    ArithExp end                //
-// /////////////////////////////////////////////////
-
-// /////////////////////////////////////////////////
 //                  BooleanExp start              //
 // /////////////////////////////////////////////////
 
-bool CompareBool( float num1, Token op, float num2 ) {
+bool CompareBoolFloat( float num1, Token op, float num2 ) {
   // PrintNowFunction( "CompareBool" );
   if ( ( num1 - num2 <= 0.0001 ) && ( num1 - num2 >= -0.0001 ) ) {
     // difference is within 0.0001
@@ -728,76 +560,231 @@ bool CompareBool( float num1, Token op, float num2 ) {
   return false;
 } // CompareBool()
 
-bool BooleanExp( Token &token, float &num ) {
-  // PrintNowFunction( "BooleanExp" );
-  if ( ArithExp( token, num ) ) {
-    if ( token.mToken == ";" ) {
-      cout << num << endl;
-      return true;
+// /////////////////////////////////////////////////
+//                    Factor start                //
+// /////////////////////////////////////////////////
+
+bool Factor( Token &token ) {
+  if ( IDENT( token ) ) {
+    return true;
+  } // if
+  else if ( SIGN( token ) ) {
+    string sign = token.mToken;
+    Value value;
+    if ( NextToken( token ) ) {
+      if ( NUM( token, value ) ) {
+        value.
+      } // if
     } // if
-    else if ( IsBoolOperator( token ) ) {
-      Token op = token;
-      float num1 = num;
-      if ( NextToken( token ) ) {
-        if ( ArithExp( token, num ) ) {
-          if ( token.mToken == ";" ) {
-            if ( CompareBool( num1, op, num ) )
-              cout << "true" << endl;
-            else
-              cout << "false" << endl;
+  } // else if
+  else if ( token.mToken == "(" ) {
+    if ( NextToken( token ) ) {
+      if ( ArithExp( token ) ) {
+        if ( token.mToken == ")" ) {
+          return true;
+        } // if
+      } // if2
+    } // if
+  } // else if
+
+  return false;
+} // Factor()
+
+// /////////////////////////////////////////////////
+//                  ZeroOrMany start              //
+// /////////////////////////////////////////////////
+
+bool ZeroOrManyMulDiv( Token &token ) {
+  if ( token.mToken == "*" ) {
+    if ( NextToken( token ) ) {
+      if ( Factor( token ) ) {
+        if ( token.mToken == ";" )
+          return true;
+        return ZeroOrManyMulDiv( token );
+      } // if
+    } // if
+  } // if
+  else if ( token.mToken == "/" ) {
+    if ( NextToken( token ) ) {
+      if ( Factor( token ) ) {
+        if ( token.mToken == ";" )
+          return true;
+        return ZeroOrManyMulDiv( token );
+      } // if
+    } // if
+  } // else if
+
+  return false;
+} // ZeroOrManyMulDiv()
+
+bool ZeroOrManyAddSub( Token &token ) {
+  if ( token.mToken == "+" ) {
+    if ( NextToken( token ) ) {
+      if ( Term( token ) ) {
+        if ( token.mToken == ";" )
+          return true;
+        return ZeroOrManyAddSub( token );
+      } // if
+    } // if
+  } // if
+  else if ( token.mToken == "-" ) {
+    if ( NextToken( token ) ) {
+      if ( Term( token ) ) {
+        if ( token.mToken == ";" )
+          return true;
+        return ZeroOrManyAddSub( token );
+      } // if
+    } // if
+  } // else if
+
+  return false;
+} // ZeroOrManyAddSub()
+
+// /////////////////////////////////////////////////
+//                     Term start                 //
+// /////////////////////////////////////////////////
+
+bool Term( Token &token ) {
+  if ( Factor( token ) ) {
+    if ( NextToken( token ) ) {
+      return ZeroOrManyMulDiv( token );
+    } // if
+  } // if
+
+  return false;
+} // Term()
+
+// /////////////////////////////////////////////////
+//                   ArithExp start               //
+// /////////////////////////////////////////////////
+
+bool ArithExp( Token &token ) {
+  if ( Term( token ) ) {
+    if ( NextToken( token ) ) {
+      return ZeroOrManyAddSub( token );
+    } // if
+  } // if
+
+  return false;
+} // ArithExp()
+
+// /////////////////////////////////////////////////
+//              NOT_ID_StartFactor start          //
+// /////////////////////////////////////////////////
+
+bool NOT_ID_StartFactor( Token &token ) {
+  if ( SIGN( token ) ) {
+    if ( NextToken( token ) ) {
+      if ( NUM( token ) ) {
+        return true;
+      } // if
+    } // if
+  } // if
+  else if ( token.mToken == "(" ) {
+    if ( NextToken( token ) ) {
+      if ( ArithExp( token ) ) {
+        if ( token.mToken == ")" ) {
+          return true;
+        } // if
+      } // if
+    } // if
+  } // else if
+
+  return false;
+} // NOT_ID_StartFactor()
+
+// /////////////////////////////////////////////////
+//               NOT_ID_StartFactor end           //
+// /////////////////////////////////////////////////
+
+// /////////////////////////////////////////////////
+//               NOT_ID_StartTerm start           //
+// /////////////////////////////////////////////////
+
+bool NOT_ID_StartTerm( Token &token ) {
+  if ( NOT_ID_StartFactor( token ) ) {
+    if ( NextToken( token ) ) {
+      return ZeroOrManyMulDiv( token );
+    } // if
+  } // if
+
+  return false;
+} // NOT_ID_StartTerm()
+
+// /////////////////////////////////////////////////
+//              NOT_ID_StartArithExp start        //
+// /////////////////////////////////////////////////
+
+bool NOT_ID_StartArithExp( Token &token ) {
+  if ( NOT_ID_StartTerm( token ) ) {
+    if ( NextToken( token ) ) {
+      return ZeroOrManyAddSub( token );
+    } // if
+  } // if
+
+  return false;
+} // NOT_ID_StartArithExp()
+
+bool NOT_ID_StartArithExpOrBexp( Token &token ) {
+  if ( NOT_ID_StartArithExp( token ) ) {
+    if ( NextToken( token ) ) {
+      if ( IsBoolOperator( token ) ) {
+        if ( NextToken( token ) ) {
+          if ( ArithExp( token ) ) {
             return true;
           } // if
         } // if
       } // if
-    } // else if
+    } // if
   } // if
 
-  if ( gErrorMessage == "" )
-    gErrorMessage = "Unexpected";
+
   return false;
-} // BooleanExp()
+} // NOT_ID_StartArithExpOrBexp()
 
-// /////////////////////////////////////////////////
-//                   BooleanExp end               //
-// /////////////////////////////////////////////////
-
-bool Statement( Token &token, float &num ) {
-  // PrintNowFunction( "Statement" );
-  if ( IDENT( token, num ) ) {
-    Token token1 = token;
-    if ( NextToken( token ) ) {
-      if ( token.mToken == ":=" ) {
-        if ( NextToken( token ) ) {
-          if ( ArithExp( token, num ) ) {
-            float num1 = num;
-            if ( token.mToken == ";" ) {
-              int identIndex = -1;
-              if ( IsIDENTDefined( token1, identIndex ) ) {
-                gIdentifier[identIndex].mValue = num1;
-                cout << gIdentifier[identIndex].mValue << endl;
-              } // if
-              else {
-                Identifier ident;
-                ident = Identifier( token1.mToken, num1 );
-                gIdentifier.push_back( ident );
-                cout << ident.mValue << endl;
-              } // else
-
-              return true;
-            } // if
-          } // if
+bool IDlessArithExpOrBexp( Token &token ) {
+  if ( token.mToken == "+" || token.mToken == "-" ||
+       token.mToken == "*" || token.mToken == "/" ) {
+    if ( token.mToken == "+" ) {
+      if ( NextToken( token ) ) {
+        if ( Term( token ) ) {
+          return true;
         } // if
       } // if
-      else {
-        // 發現不是宣告的時候就強制跳到這個 Statement 的第一個 token
-        gJump = true;
-        NextToken( token );
-      } // else
+    } // if
+    else if ( token.mToken == "-" ) {
+      if ( NextToken( token ) ) {
+        if ( Term( token ) ) {
+          return true;
+        } // if
+      } // if
+    } // else if
+    else if ( token.mToken == "*" ) {
+      if ( NextToken( token ) ) {
+        if ( Factor( token ) ) {
+          return true;
+        } // if
+      } // if
+    } // else if
+    else if ( token.mToken == "/" ) {
+      if ( NextToken( token ) ) {
+        if ( Factor( token ) ) {
+          return true;
+        } // if
+      } // if
+    } // else if
+
+    if ( IsBoolOperator( token ) ) {
+      if ( NextToken( token ) ) {
+        if ( ArithExp( token ) ) {
+
+        } // if
+      } // if
     } // if
   } // if
 
   return false;
-} // Statement()
+} // IDlessArithExpOrBexp()
 
 void Command( string &e ) {
   // // PrintNowFunction( "Command" );
@@ -805,34 +792,24 @@ void Command( string &e ) {
   float num;
   cout << "> ";
   while ( NextToken( token ) ) {
-    if ( !token.mIsRecord ) {
-      gHeadOfStatement.push_back( token );
-      token.mIsRecord = true;
+    if ( QUIT( token ) ) {
+      return ;
     } // if
+    else if ( IDENT( token ) ) {
+      if ( NextToken( token ) ) {
+        if ( token.mToken == ":=" ) {
+          if ( NextToken( token ) ) {
 
-    if ( token.mToken != ";" ) {
-      if ( QUIT( token ) ) {
-        cout << "Program exits..." << endl;
-        return ;
+          } // if
+        } // if
+        else if ( IDlessArithExpOrBexp( token ) ) {
+
+        } // else if
       } // if
-      else if ( Statement( token, num ) ) {
-        // do nothing
-      } // if
-      else if ( BooleanExp( token, num ) ) {
-        // do nothing
-      } // else if
-      else {
-        PrintError( token.mToken );
-        gErrorMessage = "";
-        gError = true;
-      } // else
     } // if
-    else {
-      gErrorMessage = "Unexpected";
-      PrintError( token.mToken );
-      gErrorMessage = "";
-      gError = true;
-    } // else
+    else if ( NOT_ID_StartArithExpOrBexp( token ) ) {
+
+    } // else if
 
     cout << "> ";
   } // while
