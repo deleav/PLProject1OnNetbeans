@@ -60,6 +60,7 @@ public:
 class Identifier {
 public:
   string mToken;
+  string mValueToken;
   Value mValue;
 
   Identifier( string token, Value value ) {
@@ -216,16 +217,14 @@ void GetOneLineString( string &oneLineString ) {
 bool GetNumToken( string oneLineString, OneLineToken &oneLineToken, int &index ) {
   // PrintNowFunction( "GetNumToken" );
   string aCharToString, aTokenString;
-  int dotNum = 0;
-  if ( aCharToString != "." )
-    dotNum = 1;
+  int dotNum = 2;
   for ( ; index < oneLineString.size() ; index++ ) {
     aCharToString = string();
     aCharToString += oneLineString[index];
+    if ( aCharToString == "." )
+      dotNum--;
     if ( IsANumChar( aCharToString ) || ( aCharToString == "." && dotNum > 0 ) ) {
       aTokenString += aCharToString;
-      if ( aCharToString == "." )
-        dotNum--;
     } // if
     else {
       // 所有不是數字都回傳
@@ -428,12 +427,6 @@ bool NUM( Token &token, Value &value ) {
       } // else
     } // if
   } // for
-
-  if ( dot < 1 ) {
-    if ( token.mToken.size() > 0 && token.mToken[0] == '.' )
-      return false;
-    // 第一個不能是點
-  } // if
 
   value.type = "float";
   value.mFloat = atof( token.mToken.c_str() );
@@ -716,6 +709,7 @@ bool NOT_ID_StartTerm( Token &token ) {
 // /////////////////////////////////////////////////
 
 bool NOT_ID_StartArithExp( Token &token ) {
+  // 開頭不是ID的Arith
   if ( NOT_ID_StartTerm( token ) ) {
     if ( NextToken( token ) ) {
       return ZeroOrManyAddSub( token );
@@ -726,6 +720,7 @@ bool NOT_ID_StartArithExp( Token &token ) {
 } // NOT_ID_StartArithExp()
 
 bool NOT_ID_StartArithExpOrBexp( Token &token ) {
+  // 開頭不是ID的Arith or Bool
   if ( NOT_ID_StartArithExp( token ) ) {
     if ( NextToken( token ) ) {
       if ( IsBoolOperator( token ) ) {
@@ -777,7 +772,7 @@ bool IDlessArithExpOrBexp( Token &token ) {
     if ( IsBoolOperator( token ) ) {
       if ( NextToken( token ) ) {
         if ( ArithExp( token ) ) {
-
+          return true;
         } // if
       } // if
     } // if
@@ -795,20 +790,22 @@ void Command( string &e ) {
     if ( QUIT( token ) ) {
       return ;
     } // if
-    else if ( IDENT( token ) ) {
-      if ( NextToken( token ) ) {
-        if ( token.mToken == ":=" ) {
-          if ( NextToken( token ) ) {
-
-          } // if
-        } // if
-        else if ( IDlessArithExpOrBexp( token ) ) {
-
-        } // else if
-      } // if
-    } // if
+    // else if ( IDENT( token ) ) {
+    //   if ( NextToken( token ) ) {
+    //     if ( token.mToken == ":=" ) {
+    //       if ( NextToken( token ) ) {
+    //         if ( ArithExp( token ) ) {
+    //           // do nothing
+    //         } // if
+    //       } // if
+    //     } // if
+    //     else if ( IDlessArithExpOrBexp( token ) ) {
+    //       // do nothing
+    //     } // else if
+    //   } // if
+    // } // if
     else if ( NOT_ID_StartArithExpOrBexp( token ) ) {
-
+      // do nothing
     } // else if
 
     cout << "> ";
