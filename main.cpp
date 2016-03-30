@@ -3,6 +3,7 @@
 # include <string>
 # include <sstream>
 # include <vector>
+# include <iomanip>
 
 using namespace std;
 
@@ -48,6 +49,7 @@ public:
   Identifier() {
     mValue = 0;
   } // Identifier()
+
   Identifier( string token, float value ) {
     mToken = token;
     mValue = value;
@@ -94,6 +96,7 @@ OneLineToken gHeadOfStatement;
 AllLineToken gAllLineToken;
 vector<Identifier> gIdentifier;
 Table gTable;
+string gErrorMessage;
 bool gError = false;
 bool gJump = false;
 
@@ -121,16 +124,47 @@ bool IsTable2( string str ) {
   return false;
 } // IsTable2()
 
+bool IsNumOrEn( string str ) {
+  float num;
+  Token token( str );
+  if ( ( str[0] >= 65 && str[0] <= 90 ) ||
+       ( str[0] >= 97 && str[0] <= 122 ) ||
+       NUM( token, num ) || str[0] == '_' ||
+       str[0] == '.' )
+    return true;
+
+  return false;
+} // IsNumOrEn()
+
 bool AcceptToken( string str ) {
   float num;
   Token token( str );
   if ( ( str[0] >= 65 && str[0] <= 90 ) ||
-       ( str[0] >= 97 && str[0] <= 122 ) || NUM( token, num ) )
+       ( str[0] >= 97 && str[0] <= 122 ) || NUM( token, num ) || str[0] == '_' )
     return true;
 
-  cout << "Unrecognized token with first char : '" + str + "'" << endl;
+  string str1;
+  str1 += str[0];
+  cout << "Unrecognized token with first char : '" + str1 + "'" << endl;
+  cout << "> ";
   return false;
 } // AcceptToken()
+
+bool IsANumChar( string str ) {
+  if ( ( str[0] - '0' >= 0 ) && ( str[0] - '0' <= 9 ) )
+    return true;
+
+  return false;
+} // IsANumChar()
+
+bool RecognizedIDTokenHead( string str ) {
+  // 合法的IDENT開頭
+  if ( ( str[0] >= 65 && str[0] <= 90 ) ||
+       ( str[0] >= 97 && str[0] <= 122 ) || str[0] == '_' )
+    return true;
+
+  return false;
+} // bool
 
 bool IsBoolOperator( Token &token ) {
   if ( token.mToken == "=" || token.mToken == "<>" || token.mToken == ">" ||
@@ -139,10 +173,12 @@ bool IsBoolOperator( Token &token ) {
   return false;
 } // IsBoolOperator()
 
-bool IsIDENTDefined( Token token ) {
+bool IsIDENTDefined( Token token, int &identIndex ) {
   for ( int i = 0 ; i < gIdentifier.size() ; i++ )
-    if ( gIdentifier[i].mToken == token.mToken )
+    if ( gIdentifier[i].mToken == token.mToken ) {
+      identIndex = i;
       return true;
+    } // if
 
   return false;
 } // IsIDENTDefined()
@@ -160,6 +196,24 @@ void PrintNowFunction( string str ) {
   cout << "now in " << str << endl;
 } // PrintNowFunction()
 
+void PrintUnrecognizedToken( string str ) {
+  cout << "Unrecognized token with first char : '" + str + "'" << endl;
+} // PrintUnrecognizedToken()
+
+void PrintUnexpectedToken( string str ) {
+  cout << "Unexpected token : '" + str + "'" << endl;
+} // PrintUnexpectedToken()
+
+void PrintUndefinedIdentifier( string str ) {
+  cout << "Undefined identifier : '" + str + "'" << endl;
+} // PrintUndefinedIdentifier()
+
+void PrintError( string str ) {
+  if ( gErrorMessage == "Undefined" )
+    PrintUndefinedIdentifier( str );
+  else if ( gErrorMessage == "Unexpected" )
+    PrintUnexpectedToken( str );
+} // PrintError()
 // /////////////////////////////////////////////////////////////////////////////
 //                                GetToken                                    //
 // /////////////////////////////////////////////////////////////////////////////
@@ -167,82 +221,187 @@ void PrintNowFunction( string str ) {
 void GetOneLineString( string &oneLineString ) {
   // // PrintNowFunction( "GetOneLineString" );
   char *str1 = new char[ 100 ];
-  cout << "> ";
   cin.getline( str1, 100 );
   oneLineString = str1;
   oneLineString += "\n";
 } // GetOneLineString()
 
-bool GetOneLineToken() {
-  // PrintNowFunction( "GetOneLineToken" );
-  string oneLineString;
-  OneLineToken oneLineToken;
-  GetOneLineString( oneLineString );
-  // cout << oneLineString;
-
-  string oneTokenString;
-  for ( int i = 0 ; i < oneLineString.size() ; i++ ) { // 找到一整行的token
-    string oneChar;
-    oneChar += oneLineString[i];
-    if ( oneChar != " " && oneChar != "\n" && oneChar != "\t" && !IsTable2( oneChar ) ) {
-      oneTokenString += oneChar;
+bool GetNumToken( string oneLineString, OneLineToken &oneLineToken, int &index ) {
+  // PrintNowFunction( "GetNumToken" );
+  string aCharToString, aTokenString;
+  int dotNum = 1;
+  for ( ; index < oneLineString.size() ; index++ ) {
+    aCharToString = string();
+    aCharToString += oneLineString[index];
+    if ( IsANumChar( aCharToString ) && dotNum > 0 ) {
+      aTokenString += aCharToString;
+      if ( aCharToString == "." )
+        dotNum--;
     } // if
     else {
-      if ( oneTokenString.length() > 0 ) {
-        if ( !AcceptToken( oneTokenString ) )
-          return false;
-        Token token( oneTokenString, gAllLineToken.size(), oneLineToken.size() );
-        oneLineToken.push_back( token );
-        oneTokenString = string();
-        // 將一個token塞進oneLineToken裡面
-      } // if
+      // 所有不是數字都回傳
+      index--;
+      Token token( aTokenString );
+      oneLineToken.push_back( token );
+      return true;
+    } // else
+  } // for
 
-      if ( IsTable2( oneChar ) ) {
-        // 如果是符號的話，確定是否為 <>, >=, <=, //
-        string op = oneChar;
-        if ( i + 1 < oneLineString.size() ) {
-          oneChar += oneLineString[i + 1];
-          if ( IsTable2( oneChar ) ) {
-            // 如果是 <>, >=, <=,
-            // i 要++
-            op = oneChar;
-            i++;
-          } // if
-          else if ( op == ":" ) {
-            // op = :, 又不是:=
-            return AcceptToken( oneChar );
-          } // else if
-        } // if
+  cout << "GetNumToken Error" << endl;
+  return false;
+} // GetNumToken()
 
-        Token token( op, gAllLineToken.size(), oneLineToken.size() );
-        oneLineToken.push_back( token );
-        if ( op == "//" )
-          i = oneLineString.size() - 1;
-        // 將一個 operator token塞進oneLineToken裡面
+bool GetIdenToken( string oneLineString, OneLineToken &oneLineToken, int &index ) {
+  // PrintNowFunction( "GetIdenToken" );
+  string aCharToString, aTokenString;
+  for ( ; index < oneLineString.size() ; index++ ) {
+    aCharToString = string();
+    aCharToString += oneLineString[index];
+    if ( IsANumChar( aCharToString ) || RecognizedIDTokenHead( aCharToString ) ) {
+      aTokenString += aCharToString;
+    } // if
+    else {
+      // 不是數字或英文貨底線
+      index--;
+      Token token( aTokenString );
+      oneLineToken.push_back( token );
+      return true;
+    } // else
+  } // for
+
+    cout << "GetIdenToken Error" << endl;
+  return false;
+} // GetIdenToken()
+
+bool SymbolOrUnrecognizedToken( string oneLineString, OneLineToken &oneLineToken, int &index ) {
+  // PrintNowFunction( "SymbolOrUnrecognizedToken" );
+  string aCharToString, aTokenString;
+  aCharToString = string();
+  aCharToString += oneLineString[index];
+  if ( IsTable2( aCharToString ) ) {
+    aTokenString += aCharToString;
+    index++;
+    if ( index < oneLineToken.size() ) {
+      aCharToString += oneLineString[index];
+      if ( IsTable2( aCharToString ) ) {
+        aTokenString = aCharToString;
       } // if
+      else if ( aTokenString == ":" ) {
+        // 回報錯誤
+        PrintUnrecognizedToken( aCharToString );
+        return false;
+      } // else if
+    } // if
+
+    index--;
+    Token token( aTokenString );
+    oneLineToken.push_back( token );
+    return true;
+  } // if
+
+  PrintUnrecognizedToken( aCharToString );
+  return false;
+} // SymbolOrUnrecognizedToken()
+
+bool GetOneLineToken() {
+  // PrintNowFunction( "GetOneLineToken" );
+  string oneLineString, aCharToString;
+  OneLineToken oneLineToken;
+
+  GetOneLineString( oneLineString );
+  for ( int i = 0 ; i < oneLineString.size() ; i++ ) {
+    aCharToString = string();
+    aCharToString += oneLineString[i];
+    if ( IsANumChar( aCharToString ) ) {
+      GetNumToken( oneLineString, oneLineToken, i );
+    } // if
+    else if ( RecognizedIDTokenHead( aCharToString ) ) {
+      GetIdenToken( oneLineString, oneLineToken, i );
+    } // else if
+    else if ( aCharToString != " " && aCharToString != "\n" && aCharToString != "\t" ) {
+      if ( !SymbolOrUnrecognizedToken( oneLineString, oneLineToken, i ) )
+        return false;
     } // else
   } // for
 
   gAllLineToken.push_back( oneLineToken );
-  // PrintOneLineToken( oneLineToken );
   return true;
 } // GetOneLineToken()
+
+// bool GetOneLineToken() {
+//   // PrintNowFunction( "GetOneLineToken" );
+//   string oneLineString;
+//   OneLineToken oneLineToken;
+//   GetOneLineString( oneLineString );
+//   // cout << oneLineString;
+//
+//   string oneTokenString;
+//   for ( int i = 0 ; i < oneLineString.size() ; i++ ) { // 找到一整行的token
+//     string oneChar;
+//     oneChar += oneLineString[i];
+//     if ( oneChar != " " && oneChar != "\n" && oneChar != "\t" && IsNumOrEn( oneChar ) ) {
+//       oneTokenString += oneChar;
+//     } // if
+//     else {
+//       if ( oneTokenString.length() > 0 ) {
+//         if ( !AcceptToken( oneTokenString ) )
+//           return false;
+//         Token token( oneTokenString, gAllLineToken.size(), oneLineToken.size() );
+//         oneLineToken.push_back( token );
+//         // 將一個token塞進oneLineToken裡面
+//       } // if
+//
+//       if ( oneTokenString != "quit" && oneTokenString != "QUIT" ) {
+//         if ( IsTable2( oneChar ) ) {
+//           // 如果是符號的話，確定是否為 <>, >=, <=, //
+//           string op = oneChar;
+//           if ( i + 1 < oneLineString.size() ) {
+//             oneChar += oneLineString[i + 1];
+//             if ( IsTable2( oneChar ) ) {
+//               // 如果是 <>, >=, <=,
+//               // i 要++
+//               op = oneChar;
+//               i++;
+//             } // if
+//             else if ( op == ":" ) {
+//               // op = :, 又不是:=，確定是錯的請AcceptToken幫忙印錯誤訊息
+//               return AcceptToken( oneChar );
+//             } // else if
+//           } // if
+//
+//           Token token( op, gAllLineToken.size(), oneLineToken.size() );
+//           oneLineToken.push_back( token );
+//           if ( op == "//" )
+//             i = oneLineString.size() - 1;
+//           // 將一個 operator token塞進oneLineToken裡面
+//         } // if
+//         else if ( oneChar != " " && oneChar != "\n" && oneChar != "\t" ) {
+//           // 若是除了英數字之外，也不是符號
+//           return AcceptToken( oneChar );
+//         } // else if
+//       } // if
+//       else {
+//         i = oneLineString.size() - 1;
+//       } // else
+//
+//       oneTokenString = string();
+//     } // else
+//   } // for
+//
+//   gAllLineToken.push_back( oneLineToken );
+//   // PrintOneLineToken( oneLineToken );
+//   return true;
+// } // GetOneLineToken()
 
 bool NextLine( OneLineToken &oneLineToken, int &nowLineIndex ) {
   // PrintNowFunction( "NextLine" );
   nowLineIndex++;
   if ( nowLineIndex < gAllLineToken.size() ) {
     oneLineToken = gAllLineToken[nowLineIndex];
-    if ( oneLineToken.size() > 0 )
-      return true;
-    else {
-      GetOneLineToken();
-      return NextLine( oneLineToken, nowLineIndex );
-    } // else
+    return true;
   } // if
 
   GetOneLineToken();
-  // 如果拿下一行遇到 Unrecognized token with first char 就把 ++ 減回來
   nowLineIndex--;
   return NextLine( oneLineToken, nowLineIndex );
 } // NextLine()
@@ -421,16 +580,17 @@ bool CaculateEveryThing( Token num1Token, Token op, Token num2Token, Token &sumT
 //                    Factor start                //
 // /////////////////////////////////////////////////
 
+vector<string> gParenthesesStack;
+
 bool InOrOutAParenthesis( string in_or_out ) {
   // // PrintNowFunction( "InOrOutAParenthesis" );
-  static vector<string> parenthesesStack;
   if ( in_or_out == "in" ) {
-    parenthesesStack.push_back( "(" );
+    gParenthesesStack.push_back( "(" );
     return true;
   } // if
   else if ( in_or_out == "out" ) {
-    if ( parenthesesStack.size() > 0 ) {
-      parenthesesStack.pop_back();
+    if ( gParenthesesStack.size() > 0 ) {
+      gParenthesesStack.pop_back();
       return true;
     } // if
   } // else if
@@ -455,11 +615,14 @@ bool Factor( Token &token, float &num ) {
   } // else if
   else if ( IDENT( token, num ) ) {
     // 如果他是一個 IDENT，就檢查他是否有宣告過
-    if ( IsIDENTDefined( token ) )
+    int identIndex;
+    if ( IsIDENTDefined( token, identIndex ) ) {
+      num = gIdentifier[identIndex].mValue;
       return true;
+    } // if
     else {
-      cout << "Undefined identifier : '" + token.mToken + "'" << endl;
-    }
+      gErrorMessage = "Undefined";
+    } // else
   } // else if
   else if ( token.mToken == "(" ) {
     InOrOutAParenthesis( "in" );
@@ -502,8 +665,11 @@ bool SubTerm( Token &token, float &num ) {
       if ( InOrOutAParenthesis( "out" ) )
         return true;
     } // if
-    else
+    else {
+      if ( token.mToken == ";" && gParenthesesStack.size() > 0 )
+        return false;
       return true;
+    } // else
   } // if
   else if ( token.mToken == "*" ) {
     if ( NextToken( token ) ) {
@@ -570,10 +736,13 @@ bool QUIT( Token &token ) {
 //                   ArithExp start               //
 // /////////////////////////////////////////////////
 
+
 bool SubArithExp( Token &token, float &num ) {
   // PrintNowFunction( "SubArithExp" );
-  if ( token.mToken == ";" || token.mToken == ")" || IsBoolOperator( token ) )
-    return true;
+  if ( token.mToken == ";" || token.mToken == ")" || IsBoolOperator( token ) ) {
+    if ( gErrorMessage.size() == 0 )
+      return true;
+  } // if
   else if ( token.mToken == "+" ) {
     if ( NextToken( token ) ) {
       float num1 = num;
@@ -584,10 +753,21 @@ bool SubArithExp( Token &token, float &num ) {
     } // if
   } // else if
   else if ( token.mToken == "-" ) {
+    static string sOP = "-";
+    string op = sOP;
+    if ( sOP == "-" )
+      sOP = "+";
+    else if ( sOP == "+" )
+      sOP = "-";
     if ( NextToken( token ) ) {
       float num1 = num;
       if ( ArithExp( token, num ) ) {
-        num = num1 - num;
+        if ( op == "-" )
+          num = num1 - num;
+        else if ( op == "+" )
+          num = num1 + num;
+
+        sOP = op;
         return true;
       } // if
     } // if
@@ -615,6 +795,11 @@ bool ArithExp( Token &token, float &num ) {
 
 bool CompareBool( float num1, Token op, float num2 ) {
   // PrintNowFunction( "CompareBool" );
+  if ( ( num1 - num2 <= 0.0001 ) && ( num1 - num2 >= -0.0001 ) ) {
+    // difference is within 0.0001
+    num1 = num2 = 0;
+  } // if
+
   if ( op.mToken == "=" )
     return num1 == num2;
   else if ( op.mToken == "<>" )
@@ -655,6 +840,8 @@ bool BooleanExp( Token &token, float &num ) {
     } // else if
   } // if
 
+  if ( gErrorMessage == "" )
+    gErrorMessage = "Unexpected";
   return false;
 } // BooleanExp()
 
@@ -666,23 +853,34 @@ bool Statement( Token &token, float &num ) {
   // PrintNowFunction( "Statement" );
   if ( IDENT( token, num ) ) {
     Token token1 = token;
-    float num1 = num;
     if ( NextToken( token ) ) {
       if ( token.mToken == ":=" ) {
         if ( NextToken( token ) ) {
           if ( ArithExp( token, num ) ) {
+            float num1 = num;
             if ( token.mToken == ";" ) {
-              Identifier ident( token1.mToken, num1 );
-              gIdentifier.push_back( ident );
+              int identIndex = -1;
+              if ( IsIDENTDefined( token1, identIndex ) ) {
+                gIdentifier[identIndex].mValue = num1;
+                cout << gIdentifier[identIndex].mValue << endl;
+              } // if
+              else {
+                Identifier ident;
+                ident = Identifier( token1.mToken, num1 );
+                gIdentifier.push_back( ident );
+                cout << ident.mValue << endl;
+              } // else
+
               return true;
             } // if
           } // if
         } // if
       } // if
-
-      // 發現不是宣告的時候就強制跳到這個 Statement 的第一個 token
-      gJump = true;
-      NextToken( token );
+      else {
+        // 發現不是宣告的時候就強制跳到這個 Statement 的第一個 token
+        gJump = true;
+        NextToken( token );
+      } // else
     } // if
   } // if
 
@@ -693,24 +891,38 @@ void Command( string &e ) {
   // // PrintNowFunction( "Command" );
   Token token;
   float num;
+  cout << "> ";
   while ( NextToken( token ) ) {
     if ( !token.mIsRecord ) {
       gHeadOfStatement.push_back( token );
       token.mIsRecord = true;
     } // if
-    if ( QUIT( token ) ) {
-      cout << "Program exits..." << endl;
-      return ;
+
+    if ( token.mToken != ";" ) {
+      if ( QUIT( token ) ) {
+        cout << "Program exits..." << endl;
+        return ;
+      } // if
+      else if ( Statement( token, num ) ) {
+        // do nothing
+      } // if
+      else if ( BooleanExp( token, num ) ) {
+        // do nothing
+      } // else if
+      else {
+        PrintError( token.mToken );
+        gErrorMessage = "";
+        gError = true;
+      } // else
     } // if
-    else if ( Statement( token, num ) ) {
-      // do nothing
-    } // if
-    else if ( BooleanExp( token, num ) ) {
-      // do nothing
-    } // else if
     else {
+      gErrorMessage = "Unexpected";
+      PrintError( token.mToken );
+      gErrorMessage = "";
       gError = true;
     } // else
+
+    cout << "> ";
   } // while
 } // Command()
 
@@ -724,17 +936,17 @@ void Test() {
 } // Test()
 
 int main() {
-  // GetToken();;
+  // GetToken();
   // Test();
+
   string e, testNum;
-  cout << "Program starts..." << endl;
   char *str1 = new char[ 100 ];
   cin.getline( str1, 100 );
   testNum = str1;
   uTestNum  = atof( testNum.c_str() );
+  cout << "Program starts..." << endl;
 
   Command( e );
-  cout << e;
 
 
   return 0;
