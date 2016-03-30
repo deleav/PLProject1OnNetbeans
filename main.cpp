@@ -208,10 +208,10 @@ bool GetNumToken( string oneLineString, OneLineToken &oneLineToken, int &index )
   for ( ; index < oneLineString.size() ; index++ ) {
     aCharToString = string();
     aCharToString += oneLineString[index];
-    if ( IsANumChar( aCharToString ) || ( aCharToString == "." && dotNum > 0 ) ) {
+    if ( aCharToString == "." )
+      dotNum--;
+    if ( IsANumChar( aCharToString ) || ( aCharToString == "." && dotNum > -1 ) ) {
       aTokenString += aCharToString;
-      if ( aCharToString == "." )
-        dotNum--;
     } // if
     else {
       // 所有不是數字都回傳
@@ -293,7 +293,7 @@ bool GetOneLineToken() {
   for ( int i = 0 ; i < oneLineString.size() ; i++ ) {
     aCharToString = string();
     aCharToString += oneLineString[i];
-    if ( IsANumChar( aCharToString ) ) {
+    if ( IsANumChar( aCharToString ) || aCharToString == "." ) {
       GetNumToken( oneLineString, oneLineToken, i );
     } // if
     else if ( RecognizedIDTokenHead( aCharToString ) ) {
@@ -419,14 +419,9 @@ bool NUM( Token &token, float &num ) {
     } // if
   } // for
 
-  if ( dot < 1 ) {
-    if ( token.mToken.size() > 0 && token.mToken[0] == '.' )
-      return false;
-    // 第一個不能是點
-  } // if
-
   num = atof( token.mToken.c_str() );
-  // 暫時先轉成integer
+  // 暫時先轉成float
+  cout << num << endl;
   return true;
 } // NUM()
 
