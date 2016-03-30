@@ -421,7 +421,6 @@ bool NUM( Token &token, float &num ) {
 
   num = atof( token.mToken.c_str() );
   // 暫時先轉成float
-  cout << num << endl;
   return true;
 } // NUM()
 
@@ -664,17 +663,27 @@ bool SubArithExp( Token &token, float &num ) {
   else if ( token.mToken == "+" ) {
     if ( NextToken( token ) ) {
       float num1 = num;
-      if ( Term( token, num ) ) {
+      if ( ArithExp( token, num ) ) {
         num = num1 + num;
         return true;
       } // if
     } // if
   } // else if
   else if ( token.mToken == "-" ) {
+    static string sOP = "-";
+    string op = sOP;
+    if ( sOP == "+" )
+      sOP = "-";
+    else if ( sOP == "-" )
+      sOP = "+";
     if ( NextToken( token ) ) {
       float num1 = num;
-      if ( Term( token, num ) ) {
-        num = num1 - num;
+      if ( ArithExp( token, num ) ) {
+        if ( op == "+" )
+          num = num1 + num;
+        else if ( op == "-" )
+          num = num1 - num;
+        sOP = "-";
         return true;
       } // if
     } // if
