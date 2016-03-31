@@ -15,15 +15,40 @@ static int uTestNum = -1;
 
 class Value {
 public:
-  string type;
+  string mType;
   int mInt;
   float mFloat;
 
+  Value() {
+    mType = "";
+    mInt = 0;
+    mFloat = 0;
+  } // Value()
+
+  Value( string type, int nInt, float nFloat ) {
+    mType = type;
+    mInt = nInt;
+    mFloat = nFloat;
+  } // Value()
+
+  float NumToFloat() {
+    if ( mType == "int" )
+      return mInt;
+    else if ( mType == "float" )
+      return mFloat;
+    return 0;
+  } // NumToFloat()
+
+  void SetAllNumZero() {
+    mInt = 0;
+    mFloat = 0;
+  } // SetAllNumZero()
+
   void CleanOtherType() {
-    if ( type == "int" ) {
+    if ( mType == "int" ) {
       mFloat = 0;
     } // if
-    else if ( type == "float" ) {
+    else if ( mType == "float" ) {
       mInt = 0;
     } // else if
   } // CleanOtherType()
@@ -60,7 +85,6 @@ public:
 class Identifier {
 public:
   string mToken;
-  string mValueToken;
   Value mValue;
 
   Identifier( string token, Value value ) {
@@ -109,11 +133,11 @@ OneLineToken gHeadOfStatement;
 AllLineToken gAllLineToken;
 vector<Identifier> gIdentifier;
 Table gTable;
-string gErrorMessage;
-bool gError = false;
-bool gJump = false;
+string gErrorMessage, gErrorToken;
+bool gError = false, gIsUndefinedWhenChangeLine = false;
+bool gInDeclare = false;
 
-bool NUM( Token &token, float &num ) ;
+bool NUM( Token &token, Value &value ) ;
 // /////////////////////////////////////////////////////////////////////////////
 //                                   IsOO                                     //
 // /////////////////////////////////////////////////////////////////////////////
@@ -185,7 +209,6 @@ void PrintNowFunction( string str ) {
 
 void PrintUnrecognizedToken( string str ) {
   cout << "Unrecognized token with first char : '" + str + "'" << endl;
-  cout << "> ";
 } // PrintUnrecognizedToken()
 
 void PrintUnexpectedToken( string str ) {
@@ -196,12 +219,33 @@ void PrintUndefinedIdentifier( string str ) {
   cout << "Undefined identifier : '" + str + "'" << endl;
 } // PrintUndefinedIdentifier()
 
-void PrintError( string str ) {
-  if ( gErrorMessage == "Undefined" )
-    PrintUndefinedIdentifier( str );
+void PrintError() {
+  if ( gErrorMessage == "Unrecognized" )
+    PrintUnrecognizedToken( gErrorToken );
+  else if ( gErrorMessage == "Undefined" )
+    PrintUndefinedIdentifier( gErrorToken );
   else if ( gErrorMessage == "Unexpected" )
-    PrintUnexpectedToken( str );
+    PrintUnexpectedToken( gErrorToken );
+  else if ( gErrorMessage == "Error" )
+    cout << "Error" << endl;
+  gErrorMessage = gErrorToken = "";
+  gIsUndefinedWhenChangeLine = false;
 } // PrintError()
+
+void PrintArithAnswer( Value value ) {
+  if ( value.mType == "int" )
+    cout << value.mInt << endl;
+  else if ( value.mType == "float" )
+    cout << fixed << setprecision( 3 ) << value.mFloat << endl;
+} // PrintArithAnswer()
+
+void PrintBoolAnswer( bool tf ) {
+  if ( tf )
+    cout << "true" << endl;
+  else
+    cout << "false" << endl;
+} // PrintBoolAnswer()
+
 // /////////////////////////////////////////////////////////////////////////////
 //                                GetToken                                    //
 // /////////////////////////////////////////////////////////////////////////////
@@ -217,13 +261,13 @@ void GetOneLineString( string &oneLineString ) {
 bool GetNumToken( string oneLineString, OneLineToken &oneLineToken, int &index ) {
   // PrintNowFunction( "GetNumToken" );
   string aCharToString, aTokenString;
-  int dotNum = 2;
+  int dotNum = 1;
   for ( ; index < oneLineString.size() ; index++ ) {
     aCharToString = string();
     aCharToString += oneLineString[index];
     if ( aCharToString == "." )
       dotNum--;
-    if ( IsANumChar( aCharToString ) || ( aCharToString == "." && dotNum > 0 ) ) {
+    if ( IsANumChar( aCharToString ) || ( aCharToString == "." && dotNum > -1 ) ) {
       aTokenString += aCharToString;
     } // if
     else {
@@ -280,8 +324,9 @@ bool SymbolOrRecognizedToken( string oneLineString, OneLineToken &oneLineToken, 
 
     if ( aTokenString == ":" ) {
       // 回報錯誤
-      PrintUnrecognizedToken( aTokenString );
-      return false;
+      gErrorMessage = "Unrecognized";
+      gErrorToken = aTokenString;
+      return true;
     } // if
     else if ( aTokenString == "//" ) {
       index = oneLineString.size();
@@ -293,8 +338,12 @@ bool SymbolOrRecognizedToken( string oneLineString, OneLineToken &oneLineToken, 
     return true;
   } // if
 
-  PrintUnrecognizedToken( aCharToString );
-  return false;
+  if ( aTokenString.size() > 0 ) {
+    gErrorMessage = "Unrecognized";
+    gErrorToken = aTokenString;
+  } // if
+
+  return true;
 } // SymbolOrRecognizedToken()
 
 bool GetOneLineToken() {
@@ -316,12 +365,6 @@ bool GetOneLineToken() {
       if ( !SymbolOrRecognizedToken( oneLineString, oneLineToken, i ) )
         return false;
     } // else if
-
-    if ( oneLineToken.size() > 0 &&
-         ( oneLineToken.back().mToken == "quit" || oneLineToken.back().mToken == "QUIT" ) ) {
-      gAllLineToken.push_back( oneLineToken );
-      return true;
-    } // if
   } // for
 
   // PrintOneLineToken( oneLineToken );
@@ -349,14 +392,6 @@ bool NextToken( Token &token ) {
   static OneLineToken oneLineToken;
   nowColumnIndex++;
 
-  if ( gJump ) {
-    // 放在 nowColumnIndex++ 之後就不用 -1
-    nowLineIndex = gHeadOfStatement.back().mX - 1;
-    nowColumnIndex = gHeadOfStatement.back().mY;
-    NextLine( oneLineToken, nowLineIndex );
-    gJump = false;
-  } // if
-
   if ( gError ) {
     // 如果這行發生錯誤直接跳下一行
     nowColumnIndex = oneLineToken.size();
@@ -378,6 +413,11 @@ bool NextToken( Token &token ) {
     } // else
   } // if
   else {
+    if ( gErrorMessage == "Undefined" ) {
+      gIsUndefinedWhenChangeLine = true;
+      return false;
+    } // if
+
     if ( NextLine( oneLineToken, nowLineIndex ) ) {
       nowColumnIndex = -1;
       return NextToken( token );
@@ -396,15 +436,19 @@ void GetToken() {
 } // GetToken()
 
 // /////////////////////////////////////////////////////////////////////////////
-//                             FunctionReference                              //
+//                                Reference                                   //
 // /////////////////////////////////////////////////////////////////////////////
+
+bool ArithExp( Token &token, Value &value ) ;
+bool Term( Token &token, Value &value ) ;
+int gParentheses = 0;
 
 // /////////////////////////////////////////////////////////////////////////////
 //                               Sub3Command                                  //
 // /////////////////////////////////////////////////////////////////////////////
 
 bool SIGN( Token &token ) {
-  // // PrintNowFunction( "SIGN" );
+  // PrintNowFunction( "SIGN" );
   if ( token.mToken == "+" || token.mToken == "-" )
     return true;
 
@@ -428,9 +472,16 @@ bool NUM( Token &token, Value &value ) {
     } // if
   } // for
 
-  value.type = "float";
-  value.mFloat = atof( token.mToken.c_str() );
-  // 暫時先轉成integer
+  if ( dot == 1 ) {
+    value.mType = "int";
+    value.mInt = atoi( token.mToken.c_str() );
+  } // if
+  else {
+    value.mType = "float";
+    value.mFloat = atof( token.mToken.c_str() );
+  } // else
+
+  value.CleanOtherType();
   return true;
 } // NUM()
 
@@ -443,65 +494,49 @@ bool NUM( Token &token, Value &value ) {
 //                   Caculate start               //
 // /////////////////////////////////////////////////
 
-bool CaculateEveryThing( Token num1Token, Token op, Token num2Token, Token &sumToken ) {
-  float num1DotPos = -1, num2DotPos = -1;
-  for ( int i = 0 ; i < num1Token.mToken.size() ; i++ )
-    if ( num1Token.mToken[i] == '.' )
-      num1DotPos = i;
-  for ( int i = 0 ; i < num2Token.mToken.size() ; i++ )
-    if ( num2Token.mToken[i] == '.' )
-      num2DotPos = i;
-  // 先找到算術的基準點
-  // if ( num1DotPos == -1 )
-  //   num1DotPos = num1Token.mToken.size() - 1;
-  // if ( num2DotPos == -1 )
-  //   num2DotPos = num2Token.mToken.size() - 1;
+bool CaculateEveryThing( Value value1, Token op, Value value2, Value &value ) {
+  // PrintNowFunction( "CaculateEveryThing" );
+  if ( value1.mType == "int" && value2.mType == "int" ) {
+    if ( op.mToken == "+" )
+      value.mInt = value1.mInt + value2.mInt;
+    else if ( op.mToken == "-" )
+      value.mInt = value1.mInt - value2.mInt;
+    else if ( op.mToken == "*" )
+      value.mInt = value1.mInt * value2.mInt;
+    else if ( op.mToken == "/" ) {
+      if ( value2.mInt == 0 && value1.mInt != 0 ) {
+        gErrorMessage = "Error";
+        return false;
+      } // if
 
-  float num1 = 0, num2 = 0, sum = 0;
-  stringstream ss;
-  num1 = atof( num1Token.mToken.c_str() );
-  num2 = atof( num2Token.mToken.c_str() );
-  if ( op.mToken == "+" ) {
-    sum = num1 + num2;
-    ss << sum;
-    ss >> sumToken.mToken;
+      value.mInt = value1.mInt / value2.mInt;
+    } // else if
+
     return true;
   } // if
-  else if ( op.mToken == "-" ) {
-    sum = num1 - num2;
-    ss << sum;
-    ss >> sumToken.mToken;
-    return true;
-  } // else if
-  else if ( op.mToken == "*" ) {
-    sum = num1 * num2;
-    ss << sum;
-    ss >> sumToken.mToken;
-    return true;
-  } // else if
-  else if ( op.mToken == "/" ) {
-    if ( num2 == 0 ) {
-      if ( num1 == 0 ) {
-        sum = num1 / num2;
-        ss << sum;
-        ss >> sumToken.mToken;
-        return true;
+  else {
+    value.mType = "float";
+    if ( op.mToken == "+" )
+      value.mFloat = value1.NumToFloat() + value2.NumToFloat();
+    else if ( op.mToken == "-" )
+      value.mFloat = value1.NumToFloat() - value2.NumToFloat();
+    else if ( op.mToken == "*" )
+      value.mFloat = value1.NumToFloat() * value2.NumToFloat();
+    else if ( op.mToken == "/" ) {
+      if ( value2.NumToFloat() == 0 && value1.NumToFloat() != 0 ) {
+        gErrorMessage = "Error";
+        return false;
       } // if
-    } // if
-    else {
-      sum = num1 / num2;
-      ss << sum;
-      ss >> sumToken.mToken;
-      return true;
-    } // else
-  } // else if
+
+      value.mFloat = value1.NumToFloat() / value2.NumToFloat();
+    } // else if
+
+    value.CleanOtherType();
+    return true;
+  } // else
 
   return false;
 } // CaculateEveryThing()
-
-// /////////////////////////////////////////////////
-//                    Caculate end                //
-// /////////////////////////////////////////////////
 
 // /////////////////////////////////////////////////////////////////////////////
 //                                 Command                                    //
@@ -519,7 +554,7 @@ bool IDENT( Token &token ) {
 } // IDENT()
 
 bool QUIT( Token &token ) {
-  // // PrintNowFunction( "QUIT" );
+  // PrintNowFunction( "QUIT" );
   if ( token.mToken == "quit" || token.mToken == "QUIT" )
     return true;
 
@@ -530,51 +565,72 @@ bool QUIT( Token &token ) {
 //                  BooleanExp start              //
 // /////////////////////////////////////////////////
 
-bool CompareBoolFloat( float num1, Token op, float num2 ) {
+bool CompareBoolFloat( Value value1, Token op, Value value2 ) {
   // PrintNowFunction( "CompareBool" );
-  if ( ( num1 - num2 <= 0.0001 ) && ( num1 - num2 >= -0.0001 ) ) {
-    // difference is within 0.0001
-    num1 = num2 = 0;
+  if ( value1.mType == "float" || value2.mType == "float" ) {
+    if ( ( value1.NumToFloat() - value2.NumToFloat() <= 0.0001 ) &&
+         ( value1.NumToFloat() - value2.NumToFloat() >= -0.0001 ) ) {
+      // difference is within 0.0001
+      value1.SetAllNumZero();
+      value2.SetAllNumZero();
+    } // if
   } // if
 
   if ( op.mToken == "=" )
-    return num1 == num2;
+    return value1.NumToFloat() == value2.NumToFloat();
   else if ( op.mToken == "<>" )
-    return num1 != num2;
+    return value1.NumToFloat() != value2.NumToFloat();
   else if ( op.mToken == ">" )
-    return num1 > num2;
+    return value1.NumToFloat() > value2.NumToFloat();
   else if ( op.mToken == "<" )
-    return num1 < num2;
+    return value1.NumToFloat() < value2.NumToFloat();
   else if ( op.mToken == ">=" )
-    return num1 >= num2;
+    return value1.NumToFloat() >= value2.NumToFloat();
   else if ( op.mToken == "<=" )
-    return num1 <= num2;
+    return value1.NumToFloat() <= value2.NumToFloat();
 
   return false;
-} // CompareBool()
+} // CompareBoolFloat()
 
 // /////////////////////////////////////////////////
 //                    Factor start                //
 // /////////////////////////////////////////////////
 
-bool Factor( Token &token ) {
+bool Factor( Token &token, Value &value ) {
+  // PrintNowFunction( "Factor" );
   if ( IDENT( token ) ) {
+    Token idToken( token.mToken );
+    int idIndex = -1;
+    if ( !IsIDENTDefined( idToken, idIndex ) ) {
+      if ( gErrorMessage == "" ) {
+        gErrorToken = idToken.mToken;
+        gErrorMessage = "Undefined";
+      } // if
+    } // if
+    else
+      value = gIdentifier[idIndex].mValue;
+
     return true;
   } // if
   else if ( SIGN( token ) ) {
-    string sign = token.mToken;
-    Value value;
+    Token sign = token;
     if ( NextToken( token ) ) {
       if ( NUM( token, value ) ) {
-        value.
+        Value value1( "int", 0, 0 );
+        return CaculateEveryThing( value1, sign, value, value );
       } // if
     } // if
   } // else if
+  else if ( NUM( token, value ) ) {
+    return true;
+  } // else if
   else if ( token.mToken == "(" ) {
+    gParentheses++;
     if ( NextToken( token ) ) {
-      if ( ArithExp( token ) ) {
+      if ( ArithExp( token, value ) ) {
         if ( token.mToken == ")" ) {
-          return true;
+          gParentheses--;
+          return gParentheses >= 0;
         } // if
       } // if2
     } // if
@@ -587,48 +643,50 @@ bool Factor( Token &token ) {
 //                  ZeroOrMany start              //
 // /////////////////////////////////////////////////
 
-bool ZeroOrManyMulDiv( Token &token ) {
-  if ( token.mToken == "*" ) {
+bool ZeroOrManyMulDiv( Token &token, Value &value ) {
+  // PrintNowFunction( "ZeroOrManyMulDiv" );
+  Value value1 = value;
+  if ( token.mToken == "*" || token.mToken == "/" ) {
+    Token op = token;
     if ( NextToken( token ) ) {
-      if ( Factor( token ) ) {
-        if ( token.mToken == ";" )
-          return true;
-        return ZeroOrManyMulDiv( token );
+      if ( Factor( token, value ) ) {
+        if ( CaculateEveryThing( value1, op, value, value ) ) {
+          if ( NextToken( token ) ) {
+            if ( token.mToken == ";" || token.mToken == ")" )
+              return true;
+            return ZeroOrManyMulDiv( token, value );
+          } // if
+        } // if
       } // if
     } // if
   } // if
-  else if ( token.mToken == "/" ) {
-    if ( NextToken( token ) ) {
-      if ( Factor( token ) ) {
-        if ( token.mToken == ";" )
-          return true;
-        return ZeroOrManyMulDiv( token );
-      } // if
-    } // if
-  } // else if
+  else if ( token.mToken == "+" || token.mToken == "-" ||
+            token.mToken == ")" || token.mToken == ";" ||
+            ( IsBoolOperator( token ) && !gInDeclare ) )
+    return true;
 
   return false;
 } // ZeroOrManyMulDiv()
 
-bool ZeroOrManyAddSub( Token &token ) {
-  if ( token.mToken == "+" ) {
+bool ZeroOrManyAddSub( Token &token, Value &value ) {
+  // PrintNowFunction( "ZeroOrManyAddSub" );
+  Value value1 = value;
+  if ( token.mToken == "+" || token.mToken == "-" ) {
+    Token op = token;
     if ( NextToken( token ) ) {
-      if ( Term( token ) ) {
-        if ( token.mToken == ";" )
-          return true;
-        return ZeroOrManyAddSub( token );
+      if ( Term( token, value ) ) {
+        if ( CaculateEveryThing( value1, op, value, value ) ) {
+          if ( token.mToken == ";" || token.mToken == ")" )
+            return true;
+          return ZeroOrManyAddSub( token, value );
+        } // if
       } // if
     } // if
   } // if
-  else if ( token.mToken == "-" ) {
-    if ( NextToken( token ) ) {
-      if ( Term( token ) ) {
-        if ( token.mToken == ";" )
-          return true;
-        return ZeroOrManyAddSub( token );
-      } // if
-    } // if
-  } // else if
+  else if ( token.mToken == "*" || token.mToken == "/" ||
+            token.mToken == ")" || token.mToken == ";" ||
+            ( IsBoolOperator( token ) && !gInDeclare ) )
+    return true;
 
   return false;
 } // ZeroOrManyAddSub()
@@ -637,10 +695,11 @@ bool ZeroOrManyAddSub( Token &token ) {
 //                     Term start                 //
 // /////////////////////////////////////////////////
 
-bool Term( Token &token ) {
-  if ( Factor( token ) ) {
+bool Term( Token &token, Value &value ) {
+  // PrintNowFunction( "Term" );
+  if ( Factor( token, value ) ) {
     if ( NextToken( token ) ) {
-      return ZeroOrManyMulDiv( token );
+      return ZeroOrManyMulDiv( token, value );
     } // if
   } // if
 
@@ -651,11 +710,10 @@ bool Term( Token &token ) {
 //                   ArithExp start               //
 // /////////////////////////////////////////////////
 
-bool ArithExp( Token &token ) {
-  if ( Term( token ) ) {
-    if ( NextToken( token ) ) {
-      return ZeroOrManyAddSub( token );
-    } // if
+bool ArithExp( Token &token, Value &value ) {
+  // PrintNowFunction( "ArithExp" );
+  if ( Term( token, value ) ) {
+    return ZeroOrManyAddSub( token, value );
   } // if
 
   return false;
@@ -665,19 +723,28 @@ bool ArithExp( Token &token ) {
 //              NOT_ID_StartFactor start          //
 // /////////////////////////////////////////////////
 
-bool NOT_ID_StartFactor( Token &token ) {
+bool NOT_ID_StartFactor( Token &token, Value &value ) {
+  // PrintNowFunction( "NOT_ID_StartFactor" );
+  // 開頭不是ID的Factor
   if ( SIGN( token ) ) {
+    Token sign = token;
     if ( NextToken( token ) ) {
-      if ( NUM( token ) ) {
-        return true;
+      if ( NUM( token, value ) ) {
+        Value value1( "int", 0, 0 );
+        return CaculateEveryThing( value1, sign, value, value );
       } // if
     } // if
   } // if
+  else if ( NUM( token, value ) ) {
+    return true;
+  } // else if
   else if ( token.mToken == "(" ) {
+    gParentheses++;
     if ( NextToken( token ) ) {
-      if ( ArithExp( token ) ) {
+      if ( ArithExp( token, value ) ) {
         if ( token.mToken == ")" ) {
-          return true;
+          gParentheses--;
+          return gParentheses >= 0;
         } // if
       } // if
     } // if
@@ -687,17 +754,15 @@ bool NOT_ID_StartFactor( Token &token ) {
 } // NOT_ID_StartFactor()
 
 // /////////////////////////////////////////////////
-//               NOT_ID_StartFactor end           //
-// /////////////////////////////////////////////////
-
-// /////////////////////////////////////////////////
 //               NOT_ID_StartTerm start           //
 // /////////////////////////////////////////////////
 
-bool NOT_ID_StartTerm( Token &token ) {
-  if ( NOT_ID_StartFactor( token ) ) {
+bool NOT_ID_StartTerm( Token &token, Value &value ) {
+  // PrintNowFunction( "NOT_ID_StartTerm" );
+  // 開頭不是ID的Term
+  if ( NOT_ID_StartFactor( token, value ) ) {
     if ( NextToken( token ) ) {
-      return ZeroOrManyMulDiv( token );
+      return ZeroOrManyMulDiv( token, value );
     } // if
   } // if
 
@@ -708,24 +773,33 @@ bool NOT_ID_StartTerm( Token &token ) {
 //              NOT_ID_StartArithExp start        //
 // /////////////////////////////////////////////////
 
-bool NOT_ID_StartArithExp( Token &token ) {
+bool NOT_ID_StartArithExp( Token &token, Value &value ) {
+  // PrintNowFunction( "NOT_ID_StartArithExp" );
   // 開頭不是ID的Arith
-  if ( NOT_ID_StartTerm( token ) ) {
-    if ( NextToken( token ) ) {
-      return ZeroOrManyAddSub( token );
-    } // if
+  if ( NOT_ID_StartTerm( token, value ) ) {
+    return ZeroOrManyAddSub( token, value );
   } // if
 
   return false;
 } // NOT_ID_StartArithExp()
 
-bool NOT_ID_StartArithExpOrBexp( Token &token ) {
+bool NOT_ID_StartArithExpOrBexp( Token &token, Value &value ) {
+  // PrintNowFunction( "NOT_ID_StartArithExpOrBexp" );
   // 開頭不是ID的Arith or Bool
-  if ( NOT_ID_StartArithExp( token ) ) {
-    if ( NextToken( token ) ) {
-      if ( IsBoolOperator( token ) ) {
-        if ( NextToken( token ) ) {
-          if ( ArithExp( token ) ) {
+  if ( NOT_ID_StartArithExp( token, value ) ) {
+    if ( token.mToken == ";" ) {
+      if ( gErrorMessage == "" )
+        PrintArithAnswer( value );
+      return true;
+    } // if
+    else if ( IsBoolOperator( token ) ) {
+      Value value1 = value;
+      Token op = token;
+      if ( NextToken( token ) ) {
+        if ( ArithExp( token, value ) ) {
+          if ( token.mToken == ";" ) {
+            if ( gErrorMessage == "" )
+              PrintBoolAnswer( CompareBoolFloat( value1, op, value ) );
             return true;
           } // if
         } // if
@@ -733,80 +807,135 @@ bool NOT_ID_StartArithExpOrBexp( Token &token ) {
     } // if
   } // if
 
+  if ( gErrorMessage != "Error" && gErrorMessage != "Unrecognized" && !gIsUndefinedWhenChangeLine ) {
+    gErrorMessage = "Unexpected";
+    gErrorToken = token.mToken;
+  } // if
 
   return false;
 } // NOT_ID_StartArithExpOrBexp()
 
-bool IDlessArithExpOrBexp( Token &token ) {
-  if ( token.mToken == "+" || token.mToken == "-" ||
-       token.mToken == "*" || token.mToken == "/" ) {
-    if ( token.mToken == "+" ) {
-      if ( NextToken( token ) ) {
-        if ( Term( token ) ) {
-          return true;
+bool Sub_IDlessArithExpOrBexp( Token &token, Value &value ) {
+  Value value1 = value;
+  Token op = token;
+  if ( token.mToken == "+" || token.mToken == "-" ) {
+    if ( NextToken( token ) ) {
+      if ( Term( token, value ) ) {
+        if ( CaculateEveryThing( value1, op, value, value ) ) {
+          return Sub_IDlessArithExpOrBexp( token, value );
         } // if
       } // if
     } // if
-    else if ( token.mToken == "-" ) {
-      if ( NextToken( token ) ) {
-        if ( Term( token ) ) {
-          return true;
+  } // if
+  else if ( token.mToken == "*" || token.mToken == "/" ) {
+    if ( NextToken( token ) ) {
+      if ( Factor( token, value ) ) {
+        if ( CaculateEveryThing( value1, op, value, value ) ) {
+          if ( NextToken( token ) ) {
+            return Sub_IDlessArithExpOrBexp( token, value );
+          } // if
         } // if
       } // if
-    } // else if
-    else if ( token.mToken == "*" ) {
-      if ( NextToken( token ) ) {
-        if ( Factor( token ) ) {
-          return true;
-        } // if
-      } // if
-    } // else if
-    else if ( token.mToken == "/" ) {
-      if ( NextToken( token ) ) {
-        if ( Factor( token ) ) {
-          return true;
-        } // if
-      } // if
-    } // else if
+    } // if
+  } // else if
+  else if ( token.mToken == ";" || IsBoolOperator( token ) )
+    return true;
 
-    if ( IsBoolOperator( token ) ) {
+  return false;
+} // Sub_IDlessArithExpOrBexp()
+
+bool IDlessArithExpOrBexp( Token &token, Value &value ) {
+  // PrintNowFunction( "IDlessArithExpOrBexp" );
+  if ( Sub_IDlessArithExpOrBexp( token, value ) ) {
+    if ( token.mToken == ";" ) {
+      if ( gErrorMessage == "" )
+        PrintArithAnswer( value );
+      return true;
+    } // if
+    else if ( IsBoolOperator( token ) ) {
+      Value value1 = value;
+      Token op = token;
       if ( NextToken( token ) ) {
-        if ( ArithExp( token ) ) {
-          return true;
+        if ( ArithExp( token, value ) ) {
+          if ( token.mToken == ";" ) {
+            if ( gErrorMessage == "" )
+              PrintBoolAnswer( CompareBoolFloat( value1, op, value ) );
+            return true;
+          } // if
         } // if
       } // if
     } // if
+  } // if
+
+  if ( gErrorMessage != "Error" && gErrorMessage != "Unrecognized" && !gIsUndefinedWhenChangeLine ) {
+    gErrorMessage = "Unexpected";
+    gErrorToken = token.mToken;
   } // if
 
   return false;
 } // IDlessArithExpOrBexp()
 
 void Command( string &e ) {
-  // // PrintNowFunction( "Command" );
+  // PrintNowFunction( "Command" );
   Token token;
-  float num;
+  Value value;
   cout << "> ";
   while ( NextToken( token ) ) {
     if ( QUIT( token ) ) {
+      cout << "Program exits...";
       return ;
     } // if
-    // else if ( IDENT( token ) ) {
-    //   if ( NextToken( token ) ) {
-    //     if ( token.mToken == ":=" ) {
-    //       if ( NextToken( token ) ) {
-    //         if ( ArithExp( token ) ) {
-    //           // do nothing
-    //         } // if
-    //       } // if
-    //     } // if
-    //     else if ( IDlessArithExpOrBexp( token ) ) {
-    //       // do nothing
-    //     } // else if
-    //   } // if
-    // } // if
-    else if ( NOT_ID_StartArithExpOrBexp( token ) ) {
+    else if ( IDENT( token ) ) {
+      int idIndex = -1;
+      Token idToken = token;
+      if ( NextToken( token ) ) {
+        if ( token.mToken == ":=" ) {
+          if ( NextToken( token ) ) {
+            gInDeclare = true;
+            if ( ArithExp( token, value ) ) {
+              if ( token.mToken == ";" && gErrorMessage == "" ) {
+                Identifier id( idToken.mToken, value );
+                IsIDENTDefined( idToken, idIndex );
+                if ( idIndex == -1 )
+                  gIdentifier.push_back( id );
+                else
+                  gIdentifier[idIndex] = id;
+                PrintArithAnswer( id.mValue );
+              } // if
+            } // if
+            else {
+              if ( gErrorMessage != "Error" && gErrorMessage != "Unrecognized" &&
+                   !gIsUndefinedWhenChangeLine ) {
+                gErrorMessage = "Unexpected";
+                gErrorToken = token.mToken;
+              } // if
+            } // else
+          } // if
+
+          gInDeclare = false;
+        } // if
+        else {
+          if ( !IsIDENTDefined( idToken, idIndex ) ) {
+            gErrorToken = idToken.mToken;
+            gErrorMessage = "Undefined";
+          } // if
+          else
+            value = gIdentifier[idIndex].mValue;
+
+          if ( IDlessArithExpOrBexp( token, value ) ) {
+            // do nothing
+          } // else if
+        } // else
+      } // if
+    } // else if
+    else if ( NOT_ID_StartArithExpOrBexp( token, value ) ) {
       // do nothing
     } // else if
+
+    if ( gErrorMessage != "" ) {
+      gError = true;
+      PrintError();
+    } // if
 
     cout << "> ";
   } // while
